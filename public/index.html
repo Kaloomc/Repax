@@ -9,6 +9,7 @@
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Repas">
   <link rel="stylesheet" href="style.css">
@@ -20,33 +21,98 @@
   </header>
 
   <main>
+    <section id="connexion">
+      <h2>Connexion</h2>
+      <form id="form-connexion" class="carte">
+        <label>Mot de passe
+          <input name="motDePasse" type="password" autocomplete="current-password" required>
+        </label>
+        <button type="submit">Entrer</button>
+        <p class="message" role="status"></p>
+      </form>
+    </section>
+
     <section id="semaine">
-      <h2>Ma semaine</h2>
-      <p class="vide">Le planning des repas arrive à l'étape 4.</p>
+      <div class="ligne-titre">
+        <h2>Ma semaine</h2>
+        <select id="choix-semaine" aria-label="Semaine">
+          <option value="0">Cette semaine</option>
+          <option value="7">Semaine prochaine</option>
+        </select>
+      </div>
+      <div id="resume-semaine" class="carte"></div>
+      <button id="proposer" class="large">✨ Proposer les repas</button>
+      <p class="message" id="message-semaine" role="status"></p>
+      <div id="jours"></div>
     </section>
 
     <section id="courses">
       <h2>Liste de courses</h2>
-      <p class="vide">La liste de courses arrive à l'étape 4.</p>
+      <div id="resume-courses" class="carte"></div>
+      <div id="liste-courses"></div>
+    </section>
+
+    <section id="recettes">
+      <h2>Recettes</h2>
+      <form id="form-marmiton" class="carte">
+        <label>Chercher sur Marmiton
+          <span class="avec-bouton">
+            <input name="q" type="search" placeholder="poulet, lentilles, gratin…" minlength="2" maxlength="60" required>
+            <button type="submit">Chercher</button>
+          </span>
+        </label>
+        <p class="aide">Tu peux aussi coller le lien d'une recette Marmiton.</p>
+        <p class="message" role="status"></p>
+        <ul id="resultats" class="liste"></ul>
+      </form>
+      <h3>Mes recettes</h3>
+      <ul id="mes-recettes" class="liste"></ul>
+    </section>
+
+    <section id="prix">
+      <h2>Prix</h2>
+      <div class="carte">
+        <p class="aide">Prix relevés dans les Super U (U Express, Hyper U) par la communauté <a href="https://prices.openfoodfacts.org" target="_blank" rel="noopener">Open Prices</a>. Sinon : autres magasins, puis estimation. Touche un prix pour le corriger.</p>
+        <button id="actualiser">🔄 Actualiser depuis Open Prices</button>
+        <p class="message" id="etat-prix" role="status"></p>
+      </div>
+      <ul id="liste-prix" class="liste"></ul>
     </section>
 
     <section id="budget">
       <h2>Budget</h2>
-      <p class="vide">Le suivi des dépenses arrive à l'étape 5.</p>
-    </section>
+      <div id="resume-budget" class="carte"></div>
 
-    <section id="reglages">
-      <h2>Réglages</h2>
+      <h3>Ajouter une dépense</h3>
+      <form id="form-depense" class="carte">
+        <label>Montant (€)
+          <input name="montant" type="number" min="0.01" max="9999" step="0.01" inputmode="decimal" required>
+        </label>
+        <label>Libellé
+          <input name="libelle" value="Courses" maxlength="100">
+        </label>
+        <div class="deux">
+          <label>Date <input name="date" type="date" required></label>
+          <label>Magasin <input name="magasin" value="Super U" maxlength="100"></label>
+        </div>
+        <button type="submit">Enregistrer la dépense</button>
+        <p class="message" role="status"></p>
+      </form>
+      <ul id="liste-depenses" class="liste"></ul>
+
+      <h3>Réglages</h3>
       <form id="form-reglages" class="carte">
-        <label>Budget courses (€)
-          <input name="budget" type="number" min="0" max="10000" step="1" inputmode="decimal" required>
-        </label>
-        <label>Par
-          <select name="periode">
-            <option value="semaine">semaine</option>
-            <option value="mois">mois</option>
-          </select>
-        </label>
+        <div class="deux">
+          <label>Budget courses (€)
+            <input name="budget" type="number" min="0" max="10000" step="1" inputmode="decimal" required>
+          </label>
+          <label>Par
+            <select name="periode">
+              <option value="semaine">semaine</option>
+              <option value="mois">mois</option>
+            </select>
+          </label>
+        </div>
         <label>Nombre de personnes
           <input name="personnes" type="number" min="1" max="20" step="1" inputmode="numeric" required>
         </label>
@@ -55,8 +121,8 @@
           <label class="case"><input type="checkbox" name="repas" value="midi"> Midi</label>
           <label class="case"><input type="checkbox" name="repas" value="soir"> Soir</label>
         </fieldset>
-        <button type="submit">Enregistrer</button>
-        <p id="message" role="status"></p>
+        <button type="submit">Enregistrer les réglages</button>
+        <p class="message" role="status"></p>
       </form>
     </section>
   </main>
@@ -64,8 +130,9 @@
   <nav>
     <a href="#semaine">🗓️<span>Semaine</span></a>
     <a href="#courses">🛒<span>Courses</span></a>
+    <a href="#recettes">📖<span>Recettes</span></a>
+    <a href="#prix">🏷️<span>Prix</span></a>
     <a href="#budget">💶<span>Budget</span></a>
-    <a href="#reglages">⚙️<span>Réglages</span></a>
   </nav>
 
   <script src="app.js"></script>

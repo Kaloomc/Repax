@@ -1,0 +1,18 @@
+[
+  { "nom": "Pâtes à la bolognaise", "url": null, "portions": 4, "temps": 40, "ingredients": "400 g de spaghetti\n400 g de bœuf haché\n1 boîte de tomates concassées\n1 oignon\n2 gousses d'ail\n2 cuillères à soupe d'huile d'olive\nsel\npoivre" },
+  { "nom": "Chili con carne", "url": null, "portions": 4, "temps": 50, "ingredients": "400 g de bœuf haché\n1 boîte de haricots rouges\n1 boîte de tomates concassées\n1 oignon\n1 poivron\n200 g de riz\n1 cuillère à café de cumin\nsel" },
+  { "nom": "Curry de pois chiches", "url": null, "portions": 4, "temps": 30, "ingredients": "2 boîtes de pois chiches\n40 cl de lait de coco\n1 boîte de tomates concassées\n1 oignon\n2 cuillères à soupe de curry\n250 g de riz" },
+  { "nom": "Omelette aux pommes de terre", "url": null, "portions": 4, "temps": 30, "ingredients": "8 œufs\n600 g de pommes de terre\n1 oignon\n3 cuillères à soupe d'huile\nsel\npoivre" },
+  { "nom": "Riz cantonais", "url": null, "portions": 4, "temps": 25, "ingredients": "300 g de riz\n4 œufs\n150 g de jambon\n100 g de petits pois\n2 cuillères à soupe de sauce soja\n2 cuillères à soupe d'huile" },
+  { "nom": "Quiche lorraine", "url": null, "portions": 4, "temps": 45, "ingredients": "1 pâte brisée\n200 g de lardons\n3 œufs\n20 cl de crème fraîche\n20 cl de lait\n100 g d'emmental râpé\nmuscade" },
+  { "nom": "Gratin de courgettes", "url": null, "portions": 4, "temps": 45, "ingredients": "1 kg de courgettes\n2 œufs\n20 cl de crème fraîche\n100 g d'emmental râpé\n1 gousse d'ail\nsel\npoivre" },
+  { "nom": "Poulet au curry et riz", "url": null, "portions": 4, "temps": 35, "ingredients": "4 blancs de poulet\n20 cl de crème fraîche\n1 oignon\n2 cuillères à soupe de curry\n300 g de riz\n1 cuillère à soupe d'huile" },
+  { "nom": "Lentilles aux saucisses", "url": null, "portions": 4, "temps": 45, "ingredients": "400 g de lentilles\n4 saucisses\n2 carottes\n1 oignon\n1 bouquet garni\nsel" },
+  { "nom": "Croque-monsieur et salade", "url": null, "portions": 4, "temps": 20, "ingredients": "8 tranches de pain de mie\n4 tranches de jambon\n150 g d'emmental râpé\n30 g de beurre\n1 salade" },
+  { "nom": "Soupe de légumes", "url": null, "portions": 4, "temps": 40, "ingredients": "3 carottes\n2 poireaux\n3 pommes de terre\n1 oignon\n1 cube de bouillon\n1 baguette" },
+  { "nom": "Tarte thon tomate moutarde", "url": null, "portions": 4, "temps": 45, "ingredients": "1 pâte brisée\n2 boîtes de thon\n3 tomates\n2 cuillères à soupe de moutarde\n100 g d'emmental râpé" },
+  { "nom": "Hachis parmentier", "url": null, "portions": 4, "temps": 60, "ingredients": "1 kg de pommes de terre\n400 g de bœuf haché\n1 oignon\n20 cl de lait\n30 g de beurre\n80 g d'emmental râpé" },
+  { "nom": "Salade de pâtes au thon", "url": null, "portions": 4, "temps": 20, "ingredients": "300 g de pâtes\n1 boîte de thon\n1 boîte de maïs\n2 tomates\n1 concombre\n3 cuillères à soupe d'huile d'olive\n1 cuillère à soupe de vinaigre" },
+  { "nom": "Pâtes carbonara", "url": null, "portions": 4, "temps": 20, "ingredients": "400 g de spaghetti\n200 g de lardons\n3 œufs\n60 g de parmesan\npoivre" },
+  { "nom": "Poêlée de légumes et œufs au plat", "url": null, "portions": 4, "temps": 25, "ingredients": "2 courgettes\n2 poivrons\n1 oignon\n8 œufs\n2 cuillères à soupe d'huile d'olive\nherbes de Provence" }
+]
