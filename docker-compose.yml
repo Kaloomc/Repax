@@ -26,7 +26,7 @@ services:
              if [ -d /app/.git ]; then
                git fetch --depth 1 origin main && git reset --hard FETCH_HEAD;
              else
-               git clone --depth 1 https://github.com/Kaloomc/gestion-repas.git /app;
+               git clone --depth 1 https://github.com/Kaloomc/Repax.git /app;
              fi &&
              npm ci --omit=dev &&
              npm start"

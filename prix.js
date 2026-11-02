@@ -2,7 +2,7 @@
 const { CATALOGUE, SOURCES, norm } = require('./ingredients');
 
 const API = 'https://prices.openfoodfacts.org/api/v1';
-const UA = 'gestion-repas/1.0 (projet perso; https://github.com/Kaloomc/gestion-repas)';
+const UA = 'gestion-repas/1.0 (projet perso; https://github.com/Kaloomc/Repax)';
 const VALIDITE = 7 * 24 * 3600 * 1000; // un prix est gardé 7 jours
 
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));

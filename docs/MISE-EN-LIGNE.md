@@ -11,11 +11,11 @@ L'appli est indépendante : **ne l'ajoute pas au portail KalooFlix**.
 
 Le conteneur récupère le code depuis GitHub à chaque démarrage. Le dépôt doit être **public** (il ne contient aucun secret : les jetons et mots de passe sont seulement dans Container Manager).
 
-1. Sur github.com, crée le dépôt **`gestion-repas`** (public, sans README).
+1. Sur github.com, crée le dépôt **`Repax`** (public, sans README).
 2. Dans le dossier du projet :
 
 ```bash
-git remote add origin https://github.com/Kaloomc/gestion-repas.git
+git remote add origin https://github.com/Kaloomc/Repax.git
 ```
 
 ```bash

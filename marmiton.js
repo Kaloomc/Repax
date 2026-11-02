@@ -5,7 +5,7 @@
 const { limiteur } = require('./prix');
 
 const BASE = 'https://www.marmiton.org';
-const UA = 'gestion-repas/1.0 (projet perso; https://github.com/Kaloomc/gestion-repas)';
+const UA = 'gestion-repas/1.0 (projet perso; https://github.com/Kaloomc/Repax)';
 const URL_RECETTE = /^https:\/\/www\.marmiton\.org\/recettes\/recette_[a-z0-9-]+_\d+\.aspx$/;
 
 const enFile = limiteur(3000);
