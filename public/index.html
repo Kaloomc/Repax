@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Repas</title>
+  <meta name="theme-color" content="#2e7d32">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Repas">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Repas</h1>
+    <span id="mode" class="badge" hidden>Mode démo</span>
+  </header>
+
+  <main>
+    <section id="semaine">
+      <h2>Ma semaine</h2>
+      <p class="vide">Le planning des repas arrive à l'étape 4.</p>
+    </section>
+
+    <section id="courses">
+      <h2>Liste de courses</h2>
+      <p class="vide">La liste de courses arrive à l'étape 4.</p>
+    </section>
+
+    <section id="budget">
+      <h2>Budget</h2>
+      <p class="vide">Le suivi des dépenses arrive à l'étape 5.</p>
+    </section>
+
+    <section id="reglages">
+      <h2>Réglages</h2>
+      <form id="form-reglages" class="carte">
+        <label>Budget courses (€)
+          <input name="budget" type="number" min="0" max="10000" step="1" inputmode="decimal" required>
+        </label>
+        <label>Par
+          <select name="periode">
+            <option value="semaine">semaine</option>
+            <option value="mois">mois</option>
+          </select>
+        </label>
+        <label>Nombre de personnes
+          <input name="personnes" type="number" min="1" max="20" step="1" inputmode="numeric" required>
+        </label>
+        <fieldset>
+          <legend>Repas à prévoir</legend>
+          <label class="case"><input type="checkbox" name="repas" value="midi"> Midi</label>
+          <label class="case"><input type="checkbox" name="repas" value="soir"> Soir</label>
+        </fieldset>
+        <button type="submit">Enregistrer</button>
+        <p id="message" role="status"></p>
+      </form>
+    </section>
+  </main>
+
+  <nav>
+    <a href="#semaine">🗓️<span>Semaine</span></a>
+    <a href="#courses">🛒<span>Courses</span></a>
+    <a href="#budget">💶<span>Budget</span></a>
+    <a href="#reglages">⚙️<span>Réglages</span></a>
+  </nav>
+
+  <script src="app.js"></script>
+</body>
+</html>
