@@ -99,6 +99,12 @@ test('planning : restes du soir le lendemain midi', () => {
   const soir = plan.repas[1], midi = plan.repas[2];
   assert.strictEqual(soir.portions, 2);
   assert.ok(midi.restes && midi.recette === soir.recette && midi.cout === 0);
+
+  // Absent le lendemain midi (chez les parents) : pas de cuisine en double.
+  const sansMidi = creneaux.filter((c) => !(c.date === creneaux[2].date && c.moment === 'midi'));
+  const plan2 = planifier({ recettes, produits, creneaux: sansMidi, reglages: { ...reglages, restes: true }, hasard: () => 0.5 });
+  assert.strictEqual(plan2.repas[1].portions, 1);
+  assert.ok(!plan2.repas[2].restes);
 });
 
 test('placard : conserve entamée à finir vite', () => {

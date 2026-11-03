@@ -132,7 +132,8 @@ function planifier({ recettes, produits, stock = [], creneaux, reglages, hasard 
       repas.push({ ...c, recette: precedent.recette, restes: true, portions: 0, cout: 0 });
       return;
     }
-    const double = !!reglages.restes && c.moment === 'soir' && creneaux[i + 1]?.moment === 'midi';
+    const suivant = creneaux[i + 1];
+    const double = !!reglages.restes && c.moment === 'soir' && suivant?.moment === 'midi' && suivant.date === ajouterJours(c.date, 1);
     const portions = reglages.personnes * (double ? 2 : 1);
 
     const types = c.moment === 'midi' ? ['Midi simple', 'Les deux'] : ['Plat du soir', 'Les deux'];

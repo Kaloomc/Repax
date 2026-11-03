@@ -69,6 +69,13 @@ Les 7 prochains jours à partir du prochain repas (rien pour un repas déjà pas
 - **restes** (option) : le plat du soir est cuisiné en double et mangé le lendemain midi ;
 - un peu de **hasard**, pour que « Proposer d'autres repas » donne autre chose.
 
+## Liens avec Agendix et Argenx
+
+- **Agendix** dit où je suis pour chaque repas. Repax ne prévoit que les repas à Angoulême ; les autres s'affichent « Chez les parents ». Si Agendix ne répond pas, Repax prévoit tous les repas et le signale.
+- **Argenx** fournit les vraies dépenses de la catégorie Courses (relevé Revolut) : elles s'ajoutent à la saisie manuelle (à garder pour le liquide).
+- Repax expose `GET /api/prevision` (courses prévues sur les 7 prochains jours) pour qu'Argenx l'affiche.
+- Les appels entre applis passent par l'en-tête `X-Cle-Interne` (= `CLE_INTERNE`) ; voir l'étape 9 de [docs/MISE-EN-LIGNE.md](docs/MISE-EN-LIGNE.md).
+
 ## Marmiton : à savoir
 
 Marmiton n'a **pas d'API officielle**. L'appli lit les pages publiques avec parcimonie : une requête toutes les 3 secondes, un user-agent qui dit qui elle est, la première page de recherche seulement (comme le demande leur `robots.txt`), recherches gardées 24 h, et chaque recette est enregistrée pour ne jamais redemander la même page.
@@ -85,6 +92,9 @@ Variables d'environnement (jamais dans le dépôt) :
 | `NOTION_PAGE_ID` | Page Notion qui accueille les bases |
 | `APP_PASSWORD` | Mot de passe de l'appli (conseillé dès qu'elle est sur Internet) |
 | `PORT` | Port du serveur (3011 par défaut) |
+| `CLE_INTERNE` | Clé secrète commune à Repax, Argenx et Agendix pour qu'elles se parlent sur le réseau du NAS |
+| `AGENDIX_URL` | Adresse d'Agendix (ex. `http://192.168.1.45:3013`) : repas prévus seulement quand je suis à Angoulême |
+| `ARGENX_URL` | Adresse d'Argenx (ex. `http://192.168.1.45:3012`) : vraies dépenses de courses par carte dans l'onglet Budget |
 
 Au premier lancement avec Notion, l'appli **crée elle-même les 6 bases** (et ajoute les colonnes qui manquent après une mise à jour) dans la page (si elles n'y sont pas déjà), et ajoute les recettes d'exemple :
 

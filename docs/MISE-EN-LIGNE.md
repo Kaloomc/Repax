@@ -124,6 +124,22 @@ Pour changer un mot de passe ou un jeton : **Projet** → `gestion-repas` → **
 
 ---
 
+## 9. Relier Repax à Agendix et Argenx (facultatif)
+
+Les trois applis se parlent par le réseau de la maison, jamais par Internet, avec une **clé secrète commune**.
+
+1. Choisis une clé longue et aléatoire (par exemple 40 lettres et chiffres au hasard). Garde-la pour toi.
+2. Dans le YAML de **chacun des trois projets** (`gestion-repas`, `argenx`, `agendix`), mets **la même valeur** : `CLE_INTERNE=ta-clé`.
+3. Dans `gestion-repas`, garde aussi :
+   - `AGENDIX_URL=http://192.168.1.45:3013` → Repax ne prévoit les repas que quand Agendix dit « Angoulême » ; les autres repas s'affichent « Chez les parents » ;
+   - `ARGENX_URL=http://192.168.1.45:3012` → l'onglet Budget compte tes vraies dépenses de courses par carte, lues dans le relevé Revolut d'Argenx.
+4. Dans `argenx`, mets `REPAX_URL=http://192.168.1.45:3011` pour qu'Argenx affiche les courses prévues.
+5. Redémarre les trois projets.
+
+Si une appli ne répond pas, les autres continuent de marcher : Repax prévoit alors tous les repas et l'indique.
+
+---
+
 ## Dépannage
 
 | Problème | Piste |

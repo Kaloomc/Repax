@@ -124,6 +124,7 @@ button.lien { background: none; color: var(--texte); padding: 0; min-height: 0; 
 .repas { display: flex; align-items: baseline; gap: 10px; }
 .repas .moment { width: 3.2em; flex: none; font-size: .8rem; color: var(--doux); text-transform: uppercase; }
 .repas .nom { flex: 1; }
+.repas.absent .nom { color: var(--doux); font-style: italic; }
 .jour { gap: 8px; }
 
 .recette { display: block !important; }

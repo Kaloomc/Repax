@@ -98,15 +98,21 @@ function afficherSemaine() {
     <p class="aide">Du ${jourLong(s.debut)} au ${jourLong(s.fin)}${s.restes ? ' · restes du soir le lendemain midi' : ''}</p>`;
   $('#proposer').textContent = s.repas.length ? '🔁 Proposer d’autres repas' : '✨ Proposer les repas';
 
-  if (!s.repas.length) {
-    $('#jours').innerHTML = '<p class="vide">Pas encore de repas prévus.</p>';
+  if (!s.repas.length && !s.absences.length) {
+    $('#jours').innerHTML = `<p class="vide">Pas encore de repas prévus.</p>${s.agendix ? `<p class="aide">${esc(s.agendix)}</p>` : ''}`;
     return;
   }
-  const parJour = Object.groupBy(s.repas, (r) => r.date);
-  $('#jours').innerHTML = Object.entries(parJour).map(([date, repas]) => `
+  // Repas prévus + créneaux où je ne suis pas à Angoulême (d'après Agendix), dans l'ordre.
+  const lignes = [...s.repas, ...s.absences].sort((a, b) => (a.date + a.moment).localeCompare(b.date + b.moment));
+  const parJour = Object.groupBy(lignes, (r) => r.date);
+  $('#jours').innerHTML = (s.agendix ? `<p class="aide">${esc(s.agendix)}</p>` : '') + Object.entries(parJour).map(([date, repas]) => `
     <div class="jour carte">
       <h3>${jourLong(date)}</h3>
-      ${repas.map((r) => `
+      ${repas.map((r) => r.lieu ? `
+        <div class="repas absent">
+          <span class="moment">${r.moment}</span>
+          <span class="nom">${r.lieu === 'Parents' ? '👨‍👩‍👦 Chez les parents' : '✈️ ' + esc(r.lieu)}</span>
+        </div>` : `
         <div class="repas">
           <span class="moment">${r.moment}</span>
           <span class="nom">${r.restes ? '♻️ Restes : ' : ICONES[r.type] ? ICONES[r.type] + ' ' : ''}${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.repas)}</a>` : esc(r.repas)}${r.supprimee ? ' <small>(recette supprimée)</small>' : ''}${r.portions > 1 && !r.restes ? ` <small>× ${r.portions} portions</small>` : ''}</span>
@@ -368,8 +374,13 @@ async function chargerBudget() {
       <div><small>Reste</small><strong class="${b.reste < 0 ? 'rouge' : 'vert'}">${euros(b.reste)}</strong></div>
     </div>
     ${barre(b.depense, b.budget)}
-    <p class="aide">Du ${jourCourt(b.debut)} au ${jourCourt(b.fin)}.</p>`;
-  $('#liste-depenses').innerHTML = b.depenses.map((d) => `
+    <p class="aide">Du ${jourCourt(b.debut)} au ${jourCourt(b.fin)}.${b.argenx ? ` Dont ${euros(b.argenx.total)} de courses par carte, lues dans Argenx : ne saisis ici que le liquide.` : ''}${b.erreurArgenx ? ' ' + esc(b.erreurArgenx) : ''}</p>`;
+  const carte = (b.argenx?.operations || []).map((o) => `
+    <li>
+      <span class="nom">${esc(o.libelle)} <small>${jourCourt(o.date)} · Revolut (Argenx)</small></span>
+      <span class="cout">${euros(o.montant)}</span>
+    </li>`).join('');
+  $('#liste-depenses').innerHTML = carte + b.depenses.map((d) => `
     <li>
       <span class="nom">${esc(d.libelle)} <small>${jourCourt(d.date)}${d.magasin ? ' · ' + esc(d.magasin) : ''}</small></span>
       <span class="cout">${euros(d.montant)}</span>
