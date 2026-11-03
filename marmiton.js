@@ -56,6 +56,9 @@ function lireRecette(html, url) {
       portions: parseInt([r.recipeYield].flat()[0], 10) || 4,
       temps: minutes(r.totalTime),
       ingredients: (r.recipeIngredient || []).join('\n'),
+      // Infos de la page hors JSON-LD (facultatives) : "facile", "plat-principal"…
+      difficulte: html.match(/"recipeDifficulty":"([^"]+)"/)?.[1] || null,
+      typeMarmiton: html.match(/"recipeType":"([^"]+)"/)?.[1] || null,
     };
   }
   throw new Error("Recette illisible : Marmiton a peut-être changé son site.");

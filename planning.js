@@ -1,80 +1,184 @@
-// Choix des repas de la semaine par règles (pas d'IA) et liste de courses.
+// Choix des repas des 7 prochains jours, par règles (pas d'IA) :
+// achat par paquets entiers, placard virtuel pour le surplus, midi simple / soir cuisiné.
+const { norm } = require('./ingredients');
 
 const JOUR = 24 * 3600 * 1000;
-
-// Date du jour à Paris, au format AAAA-MM-JJ.
-const aujourdhui = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
+const EPS = 1e-9;
 
 const ajouterJours = (iso, n) => new Date(Date.parse(iso + 'T00:00:00Z') + n * JOUR).toISOString().slice(0, 10);
+const joursEntre = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / JOUR);
+const minDate = (a, b) => (a < b ? a : b);
 
 // Lundi de la semaine qui contient cette date.
 const lundi = (iso) => ajouterJours(iso, -((new Date(iso + 'T00:00:00Z').getUTCDay() + 6) % 7));
 
+// Date et heure à Paris : { date: 'AAAA-MM-JJ', heure: 15.5 }
+function maintenantParis(d = new Date()) {
+  const [date, h] = d.toLocaleString('sv-SE', { timeZone: 'Europe/Paris' }).split(' ');
+  const [hh, mm] = h.split(':').map(Number);
+  return { date, heure: hh + mm / 60 };
+}
+const aujourdhui = () => maintenantParis().date;
+
+// Un repas est passé à 14 h (midi) ou 21 h (soir).
+const FIN = { midi: 14, soir: 21 };
+const estPasse = (date, moment, m) => date < m.date || (date === m.date && m.heure >= FIN[moment]);
+
+// Les 7 prochains jours à partir du prochain repas.
+function creneauxAVenir(repas, m) {
+  const moments = ['midi', 'soir'].filter((x) => repas.includes(x));
+  const out = [];
+  for (let j = 0; out.length < 7 * moments.length; j++) {
+    const date = ajouterJours(m.date, j);
+    for (const moment of moments) if (!estPasse(date, moment, m) && out.length < 7 * moments.length) out.push({ date, moment });
+  }
+  return out;
+}
+
 const budgetSemaine = (reglages) => (reglages.periode === 'mois' ? (reglages.budget * 12) / 52 : reglages.budget);
 
-// Règles, pour chaque repas dans l'ordre :
-//  1. rester dans le budget : un repas ne peut pas coûter plus que ce qui reste,
-//     moins ce qu'il faut garder pour les repas suivants (au prix de la recette la moins chère) ;
-//  2. varier : une recette au plus 2 fois par semaine, jamais deux repas de suite ;
-//  3. réutiliser les ingrédients déjà prévus ou déjà achetés (moins de gaspillage) ;
-//  4. un peu de hasard pour que deux propositions ne soient pas identiques.
-// recettes : [{ id, coutPortion, ingredients: Set(noms) }]
-function planifier({ recettes, reglages, semaine, achetes = new Set(), hasard = Math.random }) {
-  const creneaux = [];
-  for (let j = 0; j < 7; j++) for (const moment of ['midi', 'soir']) {
-    if (reglages.repas.includes(moment)) creneaux.push({ date: ajouterJours(semaine, j), moment });
-  }
-  if (!recettes.length) return { repas: [], cout: 0 };
+// --- Type de plat : midi simple ou plat du soir --------------------------------
+const TYPES = ['Midi simple', 'Plat du soir', 'Les deux'];
+const MOTS_MIDI = ['salade', 'sandwich', 'wrap', 'croque', 'tartine', 'panini', 'bowl', 'omelette', 'quesadilla', 'toast',
+  'bagel', 'taboule', 'pan bagnat', 'club', 'hot dog', 'pates au pesto', 'pates au thon', 'poke', 'jambon beurre', 'pita'];
 
-  const prix = (r) => r.coutPortion * reglages.personnes;
-  const moinsChere = Math.min(...recettes.map(prix));
+// Devine le type à partir du nom, de la difficulté Marmiton et du nombre d'ingrédients (hors épices).
+function classer(nom, nbIngredients, difficulte = '', typeMarmiton = '') {
+  const n = ' ' + norm(nom);
+  if (MOTS_MIDI.some((m) => n.includes(' ' + m))) return 'Midi simple';
+  const d = norm(difficulte);
+  if (norm(typeMarmiton).startsWith('entree') && nbIngredients <= 8) return 'Midi simple';
+  if (d.startsWith('tres facile') && nbIngredients <= 5) return 'Les deux';
+  return 'Plat du soir';
+}
+
+// --- Placard --------------------------------------------------------------------
+// Prend `qte` d'un produit dans les lots, en finissant d'abord ce qui périme le plus tôt.
+// Un lot entamé se garde ensuite moins longtemps (conserve ouverte, crème…). Renvoie ce qui manque
+// et la valeur de ce qui a été pris (doublée pour ce qui allait se perdre).
+function prendre(lots, produit, qte, date, prix = 0) {
+  let reste = qte, valeur = 0;
+  const dispo = lots
+    .filter((l) => l.nom === produit.nom && l.qte > EPS && l.peremption >= date)
+    .sort((a, b) => a.peremption.localeCompare(b.peremption));
+  for (const l of dispo) {
+    if (reste <= EPS) break;
+    const pris = Math.min(l.qte, reste);
+    l.qte -= pris;
+    reste -= pris;
+    valeur += pris * prix * (joursEntre(date, l.peremption) <= 2 ? 2 : 1);
+    if (l.qte > EPS && produit.ouvert) l.peremption = minDate(l.peremption, ajouterJours(date, produit.ouvert));
+  }
+  return { manque: Math.max(0, reste), valeur };
+}
+
+// --- Planificateur ----------------------------------------------------------------
+// recettes : [{ id, type, besoins: [{ nom, qte (par portion) } | { nom, inconnu, cout (par portion) }] }]
+// produits : Map nom → entrée du catalogue + prix (€ par unité)
+// stock    : [{ nom, quantite, peremption }] ce qu'il y a déjà au placard
+//
+// Règles, pour chaque repas dans l'ordre :
+//  1. midi : un plat « Midi simple » ; soir : un « Plat du soir » (ou « Les deux ») ;
+//  2. coût réel : on pioche d'abord dans le placard, sinon on achète des paquets entiers,
+//     et le surplus retourne au placard pour les repas suivants ;
+//  3. bonus aux recettes qui finissent ce qui est au placard (doublé si ça va périmer) ;
+//  4. budget : on garde de quoi payer les repas restants ;
+//  5. variété : une recette au plus 2 fois en 7 jours, jamais deux fois de suite ;
+//  6. option restes : le plat du soir est cuisiné en double et mangé le lendemain midi ;
+//  7. un peu de hasard pour que deux propositions ne soient pas identiques.
+// ponytail: choix glouton repas par repas, sans retour en arrière ; un vrai solveur si ça ne suffit plus.
+function planifier({ recettes, produits, stock = [], creneaux, reglages, hasard = Math.random }) {
+  if (!recettes.length || !creneaux.length) return { repas: [], achats: [], total: 0, gaspillage: [] };
+  let lots = stock.map((s) => ({ nom: s.nom, qte: s.quantite, peremption: s.peremption }));
+  const achats = new Map();
+  const budget = budgetSemaine(reglages);
   const utilisations = new Map();
-  const prevus = new Set(achetes);
-  let reste = budgetSemaine(reglages);
-  let precedente = null;
+  const besoins = new Map(); // quantité totale utilisée par produit sur les 7 jours
+  const derniers = {}; // dernière recette par moment : pas deux soirs (ou deux midis) de suite
   const repas = [];
+  let depense = 0, dernier = null;
+
+  const coutProrata = (r) => r.besoins.reduce((s, b) => s + (b.inconnu ? b.cout : b.qte * produits.get(b.nom).prix), 0);
+  const moinsCher = Math.min(...recettes.map(coutProrata)) * reglages.personnes;
+
+  function simuler(r, date, portions) {
+    const copie = lots.map((l) => ({ ...l }));
+    let cout = 0, valeurStock = 0;
+    const nouveaux = [];
+    for (const b of r.besoins) {
+      if (b.inconnu) {
+        cout += b.cout * portions;
+        nouveaux.push({ nom: b.nom, inconnu: true, cout: b.cout * portions, pour: date });
+        continue;
+      }
+      const p = produits.get(b.nom);
+      const { manque, valeur } = prendre(copie, p, b.qte * portions, date, p.prix);
+      valeurStock += valeur;
+      if (manque <= EPS) continue;
+      const paquets = Math.ceil(manque / p.paquet - EPS);
+      const quantite = paquets * p.paquet;
+      cout += quantite * p.prix;
+      const surplus = quantite - manque;
+      // On suppose l'achat fait à temps (ou congelé) : le paquet se garde à partir du jour où il sert.
+      if (surplus > EPS) copie.push({ nom: b.nom, qte: surplus, peremption: ajouterJours(date, p.ouvert ? Math.min(p.garde, p.ouvert) : p.garde) });
+      nouveaux.push({ nom: b.nom, paquets, quantite, besoin: manque, cout: quantite * p.prix, pour: date });
+    }
+    return { cout, valeurStock, lots: copie, achats: nouveaux };
+  }
 
   creneaux.forEach((c, i) => {
-    let candidates = recettes.filter((r) => (utilisations.get(r.id) || 0) < 2 && r.id !== precedente);
-    if (!candidates.length) candidates = recettes.filter((r) => r.id !== precedente);
-    if (!candidates.length) candidates = recettes;
-    const aGarder = moinsChere * (creneaux.length - i - 1);
-    const possibles = candidates.filter((r) => prix(r) <= reste - aGarder);
+    const precedent = repas[repas.length - 1];
+    if (precedent?.double && c.moment === 'midi' && precedent.date === ajouterJours(c.date, -1)) {
+      repas.push({ ...c, recette: precedent.recette, restes: true, portions: 0, cout: 0 });
+      return;
+    }
+    const double = !!reglages.restes && c.moment === 'soir' && creneaux[i + 1]?.moment === 'midi';
+    const portions = reglages.personnes * (double ? 2 : 1);
+
+    const types = c.moment === 'midi' ? ['Midi simple', 'Les deux'] : ['Plat du soir', 'Les deux'];
+    let pool = recettes.filter((r) => types.includes(r.type));
+    if (!pool.length) pool = recettes;
+    const recent = (r) => r.id === dernier || r.id === derniers[c.moment];
+    let candidates = pool.filter((r) => (utilisations.get(r.id) || 0) < 2 && !recent(r));
+    if (!candidates.length) candidates = pool.filter((r) => !recent(r));
+    if (!candidates.length) candidates = pool;
+
+    const reserve = moinsCher * (creneaux.length - i - 1);
+    const sims = candidates.map((r) => ({ r, s: simuler(r, c.date, portions) }));
+    const possibles = sims.filter((x) => depense + x.s.cout <= budget - reserve + EPS);
     const choix = possibles.length
       ? possibles
-          .map((r) => {
-            let communs = 0;
-            for (const n of r.ingredients) if (prevus.has(n)) communs++;
-            return { r, score: -(utilisations.get(r.id) || 0) * 5 + Math.min(communs, 4) + hasard() * 3 };
-          })
-          .sort((a, b) => b.score - a.score)[0].r
-      : candidates.reduce((a, b) => (prix(a) <= prix(b) ? a : b)); // budget dépassé : la moins chère
-    utilisations.set(choix.id, (utilisations.get(choix.id) || 0) + 1);
-    for (const n of choix.ingredients) prevus.add(n);
-    reste -= prix(choix);
-    precedente = choix.id;
-    repas.push({ ...c, recette: choix.id, cout: prix(choix) });
+          .map((x) => ({ ...x, score: -x.s.cout + 1.5 * x.s.valeurStock - 4 * (utilisations.get(x.r.id) || 0) + hasard() * 1.5 }))
+          .sort((a, b) => b.score - a.score)[0]
+      : sims.reduce((a, b) => (a.s.cout <= b.s.cout ? a : b)); // budget dépassé : le moins cher
+
+    lots = choix.s.lots.filter((l) => l.qte > EPS);
+    for (const a of choix.s.achats) {
+      const x = achats.get(a.nom) || { nom: a.nom, inconnu: a.inconnu, paquets: 0, quantite: 0, besoin: 0, cout: 0, pour: a.pour };
+      x.paquets += a.paquets || 0;
+      x.quantite += a.quantite || 0;
+      x.besoin += a.besoin || 0;
+      x.cout += a.cout;
+      achats.set(a.nom, x);
+    }
+    for (const b of choix.r.besoins) if (!b.inconnu) besoins.set(b.nom, (besoins.get(b.nom) || 0) + b.qte * portions);
+    depense += choix.s.cout;
+    utilisations.set(choix.r.id, (utilisations.get(choix.r.id) || 0) + 1);
+    dernier = derniers[c.moment] = choix.r.id;
+    repas.push({ ...c, recette: choix.r.id, restes: false, double, portions, cout: choix.s.cout });
   });
 
-  return { repas, cout: repas.reduce((s, r) => s + r.cout, 0) };
+  // Ce qui restera au placard et périmera avant la fin des 7 jours.
+  const fin = creneaux[creneaux.length - 1].date;
+  const gaspillage = lots
+    .filter((l) => l.peremption <= fin)
+    .map((l) => ({ nom: l.nom, qte: l.qte, valeur: l.qte * produits.get(l.nom).prix }));
+
+  for (const a of achats.values()) if (!a.inconnu) a.besoin = besoins.get(a.nom);
+  return { repas, achats: [...achats.values()], total: depense, gaspillage };
 }
 
-// Additionne les ingrédients de tous les repas prévus.
-// ponytail: quantités au prorata, sans arrondir au paquet du magasin (on achète 1 kg de pâtes même s'il en faut 300 g).
-function listeCourses(repas, analyses, personnes) {
-  const articles = new Map();
-  for (const r of repas) {
-    const a = analyses.get(r.recette);
-    if (!a) continue;
-    const f = personnes / a.portions;
-    for (const l of a.lignes) {
-      const x = articles.get(l.nom) || { article: l.nom, quantite: 0, unite: l.unite, cout: 0, source: l.source, rayon: l.rayon, placard: l.placard, produit: l.produit };
-      x.quantite += l.qte * f;
-      x.cout += l.cout * f;
-      articles.set(l.nom, x);
-    }
-  }
-  return [...articles.values()].map((x) => ({ ...x, quantite: Math.round(x.quantite * 1000) / 1000, cout: Math.round(x.cout * 100) / 100 }));
-}
-
-module.exports = { planifier, listeCourses, lundi, ajouterJours, aujourdhui, budgetSemaine };
+module.exports = {
+  planifier, prendre, classer, TYPES, creneauxAVenir, estPasse, maintenantParis,
+  lundi, ajouterJours, aujourdhui, budgetSemaine,
+};

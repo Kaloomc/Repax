@@ -33,13 +33,7 @@
     </section>
 
     <section id="semaine">
-      <div class="ligne-titre">
-        <h2>Ma semaine</h2>
-        <select id="choix-semaine" aria-label="Semaine">
-          <option value="0">Cette semaine</option>
-          <option value="7">Semaine prochaine</option>
-        </select>
-      </div>
+      <h2>Mes 7 prochains jours</h2>
       <div id="resume-semaine" class="carte"></div>
       <button id="proposer" class="large">✨ Proposer les repas</button>
       <p class="message" id="message-semaine" role="status"></p>
@@ -50,6 +44,22 @@
       <h2>Liste de courses</h2>
       <div id="resume-courses" class="carte"></div>
       <div id="liste-courses"></div>
+
+      <h3>🥫 Mon placard</h3>
+      <p class="aide">Ce que tu as déjà. Les articles cochés y entrent tout seuls, les repas passés en retirent ce qu'ils utilisent. L'appli s'en sert d'abord, en commençant par ce qui va périmer. Touche une quantité pour la corriger.</p>
+      <ul id="liste-stock" class="liste"></ul>
+      <form id="form-stock" class="carte">
+        <div class="deux">
+          <label>J'ai déjà
+            <select name="nom"></select>
+          </label>
+          <label>Quantité <span id="unite-stock"></span>
+            <input name="quantite" type="number" min="0.01" max="999" step="any" inputmode="decimal" required>
+          </label>
+        </div>
+        <button type="submit">Ajouter au placard</button>
+        <p class="message" role="status"></p>
+      </form>
     </section>
 
     <section id="recettes">
@@ -121,6 +131,7 @@
           <label class="case"><input type="checkbox" name="repas" value="midi"> Midi</label>
           <label class="case"><input type="checkbox" name="repas" value="soir"> Soir</label>
         </fieldset>
+        <label class="case"><input type="checkbox" name="restes"> Cuisiner le soir en double et manger les restes le lendemain midi</label>
         <button type="submit">Enregistrer les réglages</button>
         <p class="message" role="status"></p>
       </form>

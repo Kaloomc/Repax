@@ -75,13 +75,17 @@ module.exports = function notion(SCHEMAS, nettoyer, graines) {
 
     const ids = {};
     for (const [col, s] of Object.entries(SCHEMAS)) {
-      if (trouvees[s.titre]) {
-        ids[col] = trouvees[s.titre];
-        continue;
-      }
       const properties = {};
       for (const [nom, type, cible] of Object.values(s.champs)) {
         properties[nom] = type === 'relation' ? { relation: { database_id: ids[cible], single_property: {} } } : { [type]: {} };
+      }
+      if (trouvees[s.titre]) {
+        // Base existante : on ajoute les colonnes apparues dans une nouvelle version de l'appli.
+        ids[col] = trouvees[s.titre];
+        const existantes = (await api('GET', `/databases/${ids[col]}`)).properties;
+        const manquantes = Object.fromEntries(Object.entries(properties).filter(([nom, p]) => !existantes[nom] && !p.title));
+        if (Object.keys(manquantes).length) await api('PATCH', `/databases/${ids[col]}`, { properties: manquantes });
+        continue;
       }
       const db = await api('POST', '/databases', {
         parent: { type: 'page_id', page_id: pageId },

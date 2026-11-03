@@ -21,28 +21,38 @@ const SCHEMAS = {
       nom: ['Nom', 'title'], url: ['Lien Marmiton', 'url'], portions: ['Portions', 'number'],
       ingredients: ['Ingrédients', 'rich_text'], temps: ['Temps (min)', 'number'], cout: ['Coût estimé', 'number'],
       coutPortion: ['Coût par portion', 'number'], dateRecup: ['Date de récupération', 'date'],
+      type: ['Type de repas', 'select'], difficulte: ['Difficulté', 'select'],
     },
   },
   planning: {
     titre: 'Planning des repas',
     champs: {
       repas: ['Repas', 'title'], date: ['Date', 'date'], moment: ['Moment', 'select'],
-      recette: ['Recette', 'relation', 'recettes'], semaine: ['Semaine', 'rich_text'], cout: ['Coût estimé', 'number'],
+      recette: ['Recette', 'relation', 'recettes'], cout: ['Coût estimé', 'number'],
+      portions: ['Portions cuisinées', 'number'], restes: ['Restes', 'checkbox'], consomme: ['Consommé', 'checkbox'],
     },
   },
   courses: {
     titre: 'Liste de courses',
     champs: {
-      article: ['Article', 'title'], quantite: ['Quantité', 'number'], unite: ['Unité', 'select'],
-      produit: ['Produit', 'relation', 'produits'], cout: ['Coût estimé', 'number'], achete: ['Acheté', 'checkbox'],
-      semaine: ['Semaine', 'rich_text'], source: ['Source du prix', 'select'],
+      article: ['Article', 'title'], paquets: ['Paquets', 'number'], quantite: ['Quantité', 'number'], besoin: ['Besoin', 'number'],
+      unite: ['Unité', 'select'], produit: ['Produit', 'relation', 'produits'], cout: ['Coût estimé', 'number'],
+      achete: ['Acheté', 'checkbox'], pour: ['Pour le', 'date'], source: ['Source du prix', 'select'],
+    },
+  },
+  stock: {
+    titre: 'Garde-manger',
+    champs: {
+      nom: ['Produit', 'title'], quantite: ['Quantité', 'number'], unite: ['Unité', 'select'],
+      achat: ['Acheté le', 'date'], peremption: ['À finir avant', 'date'], origine: ['Origine', 'rich_text'],
     },
   },
   depenses: {
     titre: 'Budget & dépenses',
     champs: {
       libelle: ['Libellé', 'title'], type: ['Type', 'select'], montant: ['Montant', 'number'], date: ['Date', 'date'],
-      periode: ['Période', 'select'], magasin: ['Magasin', 'rich_text'], personnes: ['Personnes', 'number'], repas: ['Repas', 'multi_select'],
+      periode: ['Période', 'select'], magasin: ['Magasin', 'rich_text'], personnes: ['Personnes', 'number'],
+      repas: ['Repas', 'multi_select'], restes: ['Restes le midi', 'checkbox'],
     },
   },
 };
@@ -58,13 +68,23 @@ function demo() {
   try {
     db = JSON.parse(fs.readFileSync(FILE, 'utf8'));
   } catch {
-    db = Object.fromEntries(Object.keys(SCHEMAS).map((c) => [c, []]));
-    db.recettes = recettesDemo.map((r) => ({ id: crypto.randomUUID(), ...r }));
+    db = { recettes: [] };
   }
   const save = () => {
     fs.mkdirSync(path.dirname(FILE), { recursive: true });
     fs.writeFileSync(FILE, JSON.stringify(db, null, 2));
   };
+  // Mise à niveau d'un ancien fichier : nouvelles bases, nouvelles recettes d'exemple, type des anciennes.
+  for (const c of Object.keys(SCHEMAS)) db[c] ??= [];
+  if ((db.version ?? 1) < 2) {
+    for (const r of recettesDemo) {
+      const existante = db.recettes.find((x) => x.nom === r.nom);
+      if (existante) existante.type ??= r.type;
+      else db.recettes.push({ id: crypto.randomUUID(), ...r });
+    }
+    db.version = 2;
+    save();
+  }
   return {
     mode: 'demo',
     list: async (col) => structuredClone(db[col]),

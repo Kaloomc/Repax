@@ -3,12 +3,13 @@
 Appli web pour téléphone (PWA installable) qui :
 
 1. garde un **budget courses** (par semaine ou par mois) ;
-2. **propose les repas de la semaine** (midi et soir) à partir de recettes **Marmiton**, sans dépasser le budget ;
+2. **propose les repas des 7 prochains jours** : un midi simple (salade, sandwich, wrap…) et un vrai plat le soir, à partir de recettes **Marmiton**, sans dépasser le budget ;
 3. estime le **coût de chaque recette** avec les prix **Super U** relevés sur [Open Prices](https://prices.openfoodfacts.org) ;
-4. génère la **liste de courses** avec le total estimé, à cocher au magasin ;
-5. suit **ce qui a vraiment été dépensé** et ce qui reste.
+4. génère la **liste de courses en paquets entiers** (au vrai prix du paquet), à cocher au magasin ;
+5. tient un **placard virtuel** : le surplus des paquets est réutilisé dans les repas suivants, en finissant d'abord ce qui va périmer ;
+6. suit **ce qui a vraiment été dépensé** et ce qui reste.
 
-Les données sont rangées dans **Notion** (5 bases). Sans Notion configuré, l'appli tourne en **mode démo** avec 16 recettes d'exemple (données dans `data/demo.json`).
+Les données sont rangées dans **Notion** (6 bases). Sans Notion configuré, l'appli tourne en **mode démo** avec 26 recettes d'exemple (données dans `data/demo.json`).
 
 Pas d'IA : les repas sont choisis par règles simples, expliquées plus bas.
 
@@ -27,11 +28,11 @@ Puis ouvrir http://localhost:3011. Tests : `npm test`.
 
 | Onglet | Ce qu'on y fait |
 |---|---|
-| 🗓️ Semaine | « Proposer les repas » remplit les 14 repas de la semaine (ou de la suivante) et la liste de courses |
-| 🛒 Courses | La liste par rayon, à cocher au magasin ; total estimé et reste à acheter |
-| 📖 Recettes | Chercher et ajouter des recettes Marmiton (ou coller un lien), voir le coût par portion et le détail ligne par ligne |
+| 🗓️ Semaine | « Proposer les repas » remplit les 7 prochains jours (à partir du prochain repas) et la liste de courses |
+| 🛒 Courses | La liste par rayon en paquets entiers, à cocher au magasin (l'article coché part au placard) ; le placard, modifiable |
+| 📖 Recettes | Chercher et ajouter des recettes Marmiton (ou coller un lien), coût par portion, type de repas (🥪 midi simple / 🍲 plat du soir / les deux) modifiable |
 | 🏷️ Prix | Les prix au kilo, d'où ils viennent, bouton « Actualiser depuis Open Prices », correction à la main |
-| 💶 Budget | Dépenses réelles, ce qui reste sur la période, réglages (budget, personnes, midi/soir) |
+| 💶 Budget | Dépenses réelles, ce qui reste sur la période, réglages (budget, personnes, midi/soir, restes) |
 
 ## D'où viennent les prix
 
@@ -46,15 +47,26 @@ Un ingrédient de recette que l'appli ne reconnaît pas est compté 0,50 € et 
 
 Les prix Open Prices sont gardés 7 jours ; l'actualisation fait une requête par seconde au maximum.
 
-> Les quantités sont calculées au prorata (il faut 300 g de pâtes → on compte 300 g, pas le paquet de 1 kg). Le vrai ticket de caisse sera donc un peu plus élevé que l'estimation, mais il te restera des provisions.
+Le coût par portion d'une recette est au prorata (pour comparer les recettes). La **liste de courses**, elle, compte des **paquets entiers** : chaque produit a une taille de paquet (pâtes 500 g, crème 20 cl, œufs par 6…) et une durée de conservation dans `ingredients.js`.
+
+## Le placard
+
+- Cocher un article dans la liste le fait entrer **en entier** au placard, avec une date « à finir avant ».
+- Chaque repas passé (après 14 h pour le midi, 21 h pour le soir) **retire** ce qu'il a utilisé.
+- Un produit entamé se garde moins longtemps (conserve ouverte : 2–3 jours, crème : 4 jours…).
+- Tu peux corriger une quantité, retirer un produit ou ajouter ce que tu as déjà (« J'ai déjà 1 kg de riz »).
+- Astuce : ajoute tes basiques (huile, farine, sucre…) pour qu'ils ne soient pas comptés à l'achat.
 
 ## Comment les repas sont choisis
 
-Pour chaque repas de la semaine, dans l'ordre :
+Les 7 prochains jours à partir du prochain repas (rien pour un repas déjà passé). Pour chaque repas, dans l'ordre :
 
-- **budget** : une recette n'est possible que s'il reste assez d'argent pour elle *et* pour les repas suivants (au prix de la recette la moins chère) ;
-- **variété** : une même recette au plus 2 fois par semaine, jamais deux repas de suite ;
-- **anti-gaspillage** : bonus aux recettes qui réutilisent des ingrédients déjà prévus ou déjà cochés comme achetés ;
+- **midi simple, soir cuisiné** : le midi, seulement des recettes « Midi simple » (ou « Les deux ») ; le soir, des « Plat du soir ». Le type est deviné à l'import (mots du nom comme salade, sandwich, wrap, croque ; difficulté et genre de plat donnés par Marmiton ; nombre d'ingrédients) et se corrige dans l'onglet Recettes ;
+- **coût réel** : on pioche d'abord dans le placard, sinon on achète des paquets entiers ; le surplus va au placard pour les repas suivants ;
+- **anti-gaspillage** : bonus aux recettes qui finissent ce qui est au placard, doublé pour ce qui va périmer dans les 2 jours ; l'appli prévient de ce qui risque d'être jeté ;
+- **budget** : une recette n'est possible que s'il reste de quoi payer les repas suivants ;
+- **variété** : une recette au plus 2 fois en 7 jours, jamais deux repas de suite, ni deux soirs (ou deux midis) de suite ;
+- **restes** (option) : le plat du soir est cuisiné en double et mangé le lendemain midi ;
 - un peu de **hasard**, pour que « Proposer d'autres repas » donne autre chose.
 
 ## Marmiton : à savoir
@@ -74,15 +86,16 @@ Variables d'environnement (jamais dans le dépôt) :
 | `APP_PASSWORD` | Mot de passe de l'appli (conseillé dès qu'elle est sur Internet) |
 | `PORT` | Port du serveur (3011 par défaut) |
 
-Au premier lancement avec Notion, l'appli **crée elle-même les 5 bases** dans la page (si elles n'y sont pas déjà), et ajoute les recettes d'exemple :
+Au premier lancement avec Notion, l'appli **crée elle-même les 6 bases** (et ajoute les colonnes qui manquent après une mise à jour) dans la page (si elles n'y sont pas déjà), et ajoute les recettes d'exemple :
 
 | Base | Colonnes |
 |---|---|
 | Produits & prix | Nom · Catégorie · Prix · Unité · Source du prix · Date du prix |
-| Recettes | Nom · Lien Marmiton · Portions · Ingrédients · Temps (min) · Coût estimé · Coût par portion · Date de récupération |
-| Planning des repas | Repas · Date · Moment · Recette (→ Recettes) · Semaine · Coût estimé |
-| Liste de courses | Article · Quantité · Unité · Produit (→ Produits) · Coût estimé · Acheté · Semaine · Source du prix |
-| Budget & dépenses | Libellé · Type (Budget / Dépense) · Montant · Date · Période · Magasin · Personnes · Repas |
+| Recettes | Nom · Lien Marmiton · Portions · Ingrédients · Temps (min) · Coût estimé · Coût par portion · Date de récupération · Type de repas · Difficulté |
+| Planning des repas | Repas · Date · Moment · Recette (→ Recettes) · Coût estimé · Portions cuisinées · Restes · Consommé |
+| Liste de courses | Article · Paquets · Quantité · Besoin · Unité · Produit (→ Produits) · Coût estimé · Acheté · Pour le · Source du prix |
+| Garde-manger | Produit · Quantité · Unité · Acheté le · À finir avant · Origine |
+| Budget & dépenses | Libellé · Type (Budget / Dépense) · Montant · Date · Période · Magasin · Personnes · Repas · Restes le midi |
 
 Les réglages de l'appli sont la ligne de type « Budget » de la dernière base. Ne renomme pas les bases ni les colonnes : l'appli les retrouve par leur nom.
 
@@ -97,12 +110,12 @@ Sur le NAS Synology, comme le jeu Gorgée : `docker-compose.yml` à coller dans 
 | Fichier | Rôle |
 |---|---|
 | `server.js` | Serveur Express : interface et routes `/api/...`, mot de passe |
-| `store.js` | Schéma des 5 bases ; stockage mode démo (fichier JSON) |
+| `store.js` | Schéma des 6 bases ; stockage mode démo (fichier JSON) |
 | `notion.js` | Stockage Notion (API officielle, création des bases) |
-| `ingredients.js` | Catalogue d'ingrédients, lecture des lignes de recette, calcul des coûts |
+| `ingredients.js` | Catalogue d'ingrédients (prix, paquets, conservation), lecture des lignes de recette, calcul des coûts |
 | `prix.js` | Récupération des prix Open Prices |
 | `marmiton.js` | Recherche et lecture des recettes Marmiton |
-| `planning.js` | Choix des repas et liste de courses |
+| `planning.js` | Choix des repas sur 7 jours, achat par paquets, placard, type de plat |
 | `demo-recettes.json` | Recettes d'exemple |
 | `public/` | Interface (HTML, CSS, JS), manifest PWA, service worker, icônes |
 | `test.js` | Tests (`npm test`) |

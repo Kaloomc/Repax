@@ -106,6 +106,10 @@ button.lien { background: none; color: var(--texte); padding: 0; min-height: 0; 
 }
 .liste > li .nom { flex: 1; min-width: 0; }
 .liste > li.achete .nom { text-decoration: line-through; color: var(--doux); }
+.liste > li.perime { border-color: var(--rouge); }
+.liste > li label.case { flex: 1; min-width: 0; }
+.type-recette { display: flex; align-items: center; gap: 8px; font-weight: 400; margin-bottom: 8px; }
+.type-recette select { width: auto; min-height: 36px; padding: 4px 8px; }
 .liste > li.titre-rayon { background: none; border: 0; padding: 12px 0 2px; font-weight: 600; color: var(--doux); }
 .carte .liste > li { background: var(--fond); }
 .cout { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
