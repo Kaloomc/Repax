@@ -28,7 +28,7 @@ Puis ouvrir http://localhost:3011. Tests : `npm test`.
 
 | Onglet | Ce qu'on y fait |
 |---|---|
-| 🗓️ Semaine | « Proposer les repas » remplit les 7 prochains jours (à partir du prochain repas) et la liste de courses |
+| 🗓️ Semaine | « Proposer les repas » remplit les 7 prochains jours (à partir du prochain repas) et la liste de courses. Sur chaque repas : 📌 le garder quand on repropose, 🔁 changer ce repas seulement, 🍽️ mangé ailleurs (rien à cuisiner, la liste est refaite) |
 | 🛒 Courses | La liste par rayon en paquets entiers, à cocher au magasin (l'article coché part au placard) ; le placard, modifiable |
 | 📖 Recettes | Chercher et ajouter des recettes Marmiton (ou coller un lien), coût par portion, type de repas (🥪 midi simple / 🍲 plat du soir / les deux) modifiable |
 | 🏷️ Prix | Les prix au kilo, d'où ils viennent, bouton « Actualiser depuis Open Prices », correction à la main |

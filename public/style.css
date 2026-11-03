@@ -125,6 +125,15 @@ button.lien { background: none; color: var(--texte); padding: 0; min-height: 0; 
 .repas .moment { width: 3.2em; flex: none; font-size: .8rem; color: var(--doux); text-transform: uppercase; }
 .repas .nom { flex: 1; }
 .repas.absent .nom { color: var(--doux); font-style: italic; }
+.repas { flex-wrap: wrap; row-gap: 4px; }
+.repas .nom { flex: 1 1 10em; } /* le nom garde sa place, les boutons passent à la ligne sur téléphone */
+.repas.ailleurs .nom { color: var(--doux); text-decoration: line-through; }
+.repas .actions { display: flex; gap: 4px; margin-left: auto; }
+button.icone {
+  min-height: 34px; min-width: 34px; padding: 2px 6px; font-size: .95rem;
+  background: transparent; color: inherit; border: 1px solid var(--bord); font-weight: 400;
+}
+button.icone.actif { background: var(--vert-doux); border-color: var(--vert); }
 .jour { gap: 8px; }
 
 .recette { display: block !important; }

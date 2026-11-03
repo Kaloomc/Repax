@@ -7,7 +7,7 @@ const prix = require('./prix');
 const { CATALOGUE, PRODUITS, SOURCES, tarifs, analyserRecette } = require('./ingredients');
 const {
   planifier, prendre, classer, TYPES, creneauxAVenir, estPasse, maintenantParis,
-  lundi, ajouterJours, aujourdhui, budgetSemaine, lieuDe,
+  lundi, ajouterJours, aujourdhui, budgetSemaine, lieuDe, cleCreneau,
 } = require('./planning');
 
 const app = express();
@@ -109,7 +109,7 @@ async function consommerPasses() {
   for (const p of aFaire) {
     const a = analyses.get(p.recette);
     const portions = p.portions ?? (p.restes ? 0 : regl.personnes);
-    if (a && portions > 0) {
+    if (a && portions > 0 && !p.ailleurs) { // mangé ailleurs : rien n'a été cuisiné
       for (const l of a.lignes) {
         const e = PRODUITS.get(l.nom);
         if (e && !e.placard && !l.inconnu) prendre(lots, e, (l.qte * portions) / a.portions, p.date);
@@ -269,7 +269,29 @@ app.get('/api/semaine', async (req, res) => {
   res.json(await vue());
 });
 
+// Toutes les colonnes, pour qu'une ligne réutilisée ne garde rien de son ancien contenu.
+const complet = (col, obj) => Object.fromEntries(Object.keys(store.SCHEMAS[col].champs).map((k) => [k, obj[k] ?? null]));
+const pareil = (a, b) => Object.keys(b).every((k) => (a[k] ?? null) === b[k]);
+
+// Écrit `lignes` à la place de `anciennes` en touchant le moins de lignes Notion possible :
+// une ligne identique ne bouge pas, une ligne qui change est modifiée sur place.
+async function remplacerLignes(col, anciennes, lignes, cle) {
+  const libres = new Map(anciennes.map((a) => [cle(a), a]));
+  const ecritures = lignes.map((l) => {
+    const a = libres.get(cle(l));
+    libres.delete(cle(l));
+    if (!a) return store.add(col, l);
+    return pareil(a, l) ? null : store.update(col, a.id, l);
+  });
+  await Promise.all([...ecritures, ...[...libres.values()].map((a) => store.remove(col, a.id))]);
+}
+
+// Propose les repas des 7 prochains jours. Les repas 📌 gardés et « mangé ailleurs » ne bougent pas.
+// { changer: id } : ne change que ce repas-là, tous les autres restent.
+// { recalculer: true } : aucun repas ne change, seule la liste de courses est refaite (après « mangé ailleurs »).
 app.post('/api/semaine', async (req, res) => {
+  const changer = req.body?.changer;
+  const recalculer = req.body?.recalculer === true;
   const gaspillage = await enSerie(async () => {
     await consommerPasses();
     const m = maintenantParis();
@@ -281,6 +303,22 @@ app.post('/api/semaine', async (req, res) => {
     const { lieu } = await presence();
     const creneaux = creneauxAVenir(regl.repas, m).filter((c) => lieu(c) === 'Angoulême');
     const produits = new Map(CATALOGUE.filter((e) => !e.placard).map((e) => [e.nom, { ...e, prix: t.get(e.nom).prix }]));
+
+    const aVenir = planning.filter((p) => !p.consomme && !estPasse(p.date, p.moment, m));
+    const cle = (p) => cleCreneau(p.date, p.moment);
+    const parCreneau = new Map(aVenir.map((p) => [cle(p), p]));
+    const cible = changer && aVenir.find((p) => p.id === changer);
+    verifier(!changer || cible, 'Repas introuvable');
+    const fixes = new Map(), exclus = new Map();
+    if (cible) exclus.set(cle(cible), cible.recette);
+    // Dans l'ordre : un repas de restes n'est gardé que si le soir d'avant l'est aussi.
+    let precedentFixe = false;
+    for (const c of creneaux) {
+      const p = parCreneau.get(cle(c));
+      const garder = p && p !== cible && analyses.has(p.recette) && (cible || recalculer || p.garde || p.ailleurs) && (!p.restes || precedentFixe);
+      if (garder) fixes.set(cle(c), p);
+      precedentFixe = !!garder && !p.ailleurs; // soir mangé ailleurs : pas de restes le lendemain
+    }
 
     const plan = planifier({
       recettes: recettes.map((r) => {
@@ -297,37 +335,55 @@ app.post('/api/semaine', async (req, res) => {
       stock: stock.filter((s) => s.quantite > 0 && PRODUITS.has(s.nom)).map((s) => ({ nom: s.nom, quantite: s.quantite, peremption: s.peremption })),
       creneaux,
       reglages: regl,
+      fixes,
+      exclus,
     });
 
     // Épices et condiments utilisés : rappel « à avoir au placard », sans prix.
     const epices = new Set();
     for (const r of plan.repas) {
-      if (!r.restes) for (const l of analyses.get(r.recette).lignes) if (l.placard && l.detail) epices.add(l.detail);
+      if (!r.restes && !r.ailleurs) for (const l of analyses.get(r.recette).lignes) if (l.placard && l.detail) epices.add(l.detail);
     }
 
-    // On remplace les repas à venir et la liste ; ce qui a été acheté est déjà au placard.
-    await Promise.all([
-      ...planning.filter((p) => !p.consomme && !estPasse(p.date, p.moment, m)).map((p) => store.remove('planning', p.id)),
-      ...courses.map((c) => store.remove('courses', c.id)),
-    ]);
+    // Repas à venir et liste : les lignes existantes sont réutilisées (moins d'écritures dans Notion).
+    // Les articles achetés quittent la liste : ils sont déjà au placard, le planning en a tenu compte.
     const noms = new Map(recettes.map((r) => [r.id, r.nom]));
-    await Promise.all([
-      ...plan.repas.map((r) => store.add('planning', {
-        repas: noms.get(r.recette), date: r.date, moment: r.moment, recette: r.recette,
-        cout: arrondi(r.cout), portions: r.portions, restes: r.restes, consomme: false,
-      })),
-      ...plan.achats.map((a) => store.add('courses', a.inconnu
+    const nouveauxRepas = plan.repas.map((r) => complet('planning', {
+      repas: noms.get(r.recette), date: r.date, moment: r.moment, recette: r.recette, cout: arrondi(r.cout),
+      portions: r.portions, restes: !!r.restes, consomme: false, garde: !!r.garde, ailleurs: !!r.ailleurs,
+    }));
+    const nouvellesCourses = [
+      ...plan.achats.map((a) => complet('courses', a.inconnu
         ? { article: a.nom, cout: arrondi(a.cout), unite: 'fois', achete: false, pour: a.pour, source: SOURCES.estimation }
         : {
             article: a.nom, paquets: a.paquets, quantite: arrondi3(a.quantite), besoin: arrondi3(a.besoin),
             unite: produits.get(a.nom).unite, cout: arrondi(a.cout), achete: false, pour: a.pour,
             source: t.get(a.nom).source, produit: t.get(a.nom).id,
           })),
-      ...[...epices].map((e) => store.add('courses', { article: e[0].toUpperCase() + e.slice(1), unite: 'placard', cout: 0, achete: false })),
+      ...[...epices].map((e) => complet('courses', { article: e[0].toUpperCase() + e.slice(1), unite: 'placard', cout: 0, achete: false })),
+    ];
+    await Promise.all([
+      remplacerLignes('planning', aVenir, nouveauxRepas, cle),
+      // Seules les lignes pas encore achetées sont réutilisées : une ligne achetée est liée à son lot du placard.
+      remplacerLignes('courses', courses.filter((c) => !c.achete), nouvellesCourses, (c) => c.article),
+      ...courses.filter((c) => c.achete).map((c) => store.remove('courses', c.id)),
     ]);
     return plan.gaspillage.map((g) => ({ nom: g.nom, valeur: arrondi(g.valeur) })).filter((g) => g.valeur >= 0.05);
   });
   res.json({ ...(await vue()), gaspillage });
+});
+
+// 📌 Garder un repas (il ne bouge plus quand on repropose) ou le marquer « mangé ailleurs ».
+app.patch('/api/planning/:id', async (req, res) => {
+  const patch = {};
+  for (const k of ['garde', 'ailleurs']) if (typeof req.body?.[k] === 'boolean') patch[k] = req.body[k];
+  verifier(Object.keys(patch).length, 'Rien à changer');
+  await enSerie(async () => {
+    const p = await trouver('planning', req.params.id);
+    verifier(!p.consomme, 'Ce repas est déjà passé');
+    await store.update('planning', p.id, patch);
+  });
+  res.json({ ok: true });
 });
 
 // Cocher un article : le paquet entier entre au placard. Décocher : il en ressort.

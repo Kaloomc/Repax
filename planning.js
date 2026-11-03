@@ -86,8 +86,10 @@ function prendre(lots, produit, qte, date, prix = 0) {
 //  5. variété : une recette au plus 2 fois en 7 jours, jamais deux fois de suite ;
 //  6. option restes : le plat du soir est cuisiné en double et mangé le lendemain midi ;
 //  7. un peu de hasard pour que deux propositions ne soient pas identiques.
+// fixes  : Map 'date moment' → { recette, portions, restes, ailleurs, garde } repas à garder tels quels
+// exclus : Map 'date moment' → id de recette à ne pas reprendre à ce repas (🔁 changer)
 // ponytail: choix glouton repas par repas, sans retour en arrière ; un vrai solveur si ça ne suffit plus.
-function planifier({ recettes, produits, stock = [], creneaux, reglages, hasard = Math.random }) {
+function planifier({ recettes, produits, stock = [], creneaux, reglages, fixes = new Map(), exclus = new Map(), hasard = Math.random }) {
   if (!recettes.length || !creneaux.length) return { repas: [], achats: [], total: 0, gaspillage: [] };
   let lots = stock.map((s) => ({ nom: s.nom, qte: s.quantite, peremption: s.peremption }));
   const achats = new Map();
@@ -127,31 +129,49 @@ function planifier({ recettes, produits, stock = [], creneaux, reglages, hasard 
   }
 
   creneaux.forEach((c, i) => {
+    // Repas déjà décidé (📌 gardé, mangé ailleurs, ou tous les autres quand on n'en change qu'un) : on le reprend tel quel.
+    const fixe = fixes.get(cleCreneau(c.date, c.moment));
+    if (fixe?.ailleurs || fixe?.restes) {
+      repas.push({ ...c, recette: fixe.recette, restes: !!fixe.restes, ailleurs: !!fixe.ailleurs, garde: !!fixe.garde, portions: 0, cout: 0 });
+      return;
+    }
     const precedent = repas[repas.length - 1];
-    if (precedent?.double && c.moment === 'midi' && precedent.date === ajouterJours(c.date, -1)) {
+    if (!fixe && precedent?.double && c.moment === 'midi' && precedent.date === ajouterJours(c.date, -1) &&
+        exclus.get(cleCreneau(c.date, c.moment)) !== precedent.recette) {
       repas.push({ ...c, recette: precedent.recette, restes: true, portions: 0, cout: 0 });
       return;
     }
     const suivant = creneaux[i + 1];
-    const double = !!reglages.restes && c.moment === 'soir' && suivant?.moment === 'midi' && suivant.date === ajouterJours(c.date, 1);
-    const portions = reglages.personnes * (double ? 2 : 1);
+    const double = fixe
+      ? fixe.portions > reglages.personnes
+      : !!reglages.restes && c.moment === 'soir' && suivant?.moment === 'midi' && suivant.date === ajouterJours(c.date, 1) &&
+        !fixes.has(cleCreneau(suivant.date, suivant.moment));
+    const portions = fixe ? fixe.portions || reglages.personnes : reglages.personnes * (double ? 2 : 1);
 
-    const types = c.moment === 'midi' ? ['Midi simple', 'Les deux'] : ['Plat du soir', 'Les deux'];
-    let pool = recettes.filter((r) => types.includes(r.type));
-    if (!pool.length) pool = recettes;
-    const recent = (r) => r.id === dernier || r.id === derniers[c.moment];
-    let candidates = pool.filter((r) => (utilisations.get(r.id) || 0) < 2 && !recent(r));
-    if (!candidates.length) candidates = pool.filter((r) => !recent(r));
-    if (!candidates.length) candidates = pool;
+    let choix;
+    if (fixe) {
+      const r = recettes.find((x) => x.id === fixe.recette);
+      choix = { r, s: simuler(r, c.date, portions) };
+    } else {
+      const types = c.moment === 'midi' ? ['Midi simple', 'Les deux'] : ['Plat du soir', 'Les deux'];
+      const exclue = exclus.get(cleCreneau(c.date, c.moment)); // 🔁 changer ce repas : pas la même recette
+      let pool = recettes.filter((r) => types.includes(r.type) && r.id !== exclue);
+      if (!pool.length) pool = recettes.filter((r) => r.id !== exclue);
+      if (!pool.length) pool = recettes;
+      const recent = (r) => r.id === dernier || r.id === derniers[c.moment];
+      let candidates = pool.filter((r) => (utilisations.get(r.id) || 0) < 2 && !recent(r));
+      if (!candidates.length) candidates = pool.filter((r) => !recent(r));
+      if (!candidates.length) candidates = pool;
 
-    const reserve = moinsCher * (creneaux.length - i - 1);
-    const sims = candidates.map((r) => ({ r, s: simuler(r, c.date, portions) }));
-    const possibles = sims.filter((x) => depense + x.s.cout <= budget - reserve + EPS);
-    const choix = possibles.length
-      ? possibles
-          .map((x) => ({ ...x, score: -x.s.cout + 1.5 * x.s.valeurStock - 4 * (utilisations.get(x.r.id) || 0) + hasard() * 1.5 }))
-          .sort((a, b) => b.score - a.score)[0]
-      : sims.reduce((a, b) => (a.s.cout <= b.s.cout ? a : b)); // budget dépassé : le moins cher
+      const reserve = moinsCher * (creneaux.length - i - 1);
+      const sims = candidates.map((r) => ({ r, s: simuler(r, c.date, portions) }));
+      const possibles = sims.filter((x) => depense + x.s.cout <= budget - reserve + EPS);
+      choix = possibles.length
+        ? possibles
+            .map((x) => ({ ...x, score: -x.s.cout + 1.5 * x.s.valeurStock - 4 * (utilisations.get(x.r.id) || 0) + hasard() * 1.5 }))
+            .sort((a, b) => b.score - a.score)[0]
+        : sims.reduce((a, b) => (a.s.cout <= b.s.cout ? a : b)); // budget dépassé : le moins cher
+    }
 
     lots = choix.s.lots.filter((l) => l.qte > EPS);
     for (const a of choix.s.achats) {
@@ -166,7 +186,7 @@ function planifier({ recettes, produits, stock = [], creneaux, reglages, hasard 
     depense += choix.s.cout;
     utilisations.set(choix.r.id, (utilisations.get(choix.r.id) || 0) + 1);
     dernier = derniers[c.moment] = choix.r.id;
-    repas.push({ ...c, recette: choix.r.id, restes: false, double, portions, cout: choix.s.cout });
+    repas.push({ ...c, recette: choix.r.id, restes: false, garde: !!fixe?.garde, double, portions, cout: choix.s.cout });
   });
 
   // Ce qui restera au placard et périmera avant la fin des 7 jours.
@@ -193,5 +213,5 @@ function lieuDe(presence, date, moment) {
 
 module.exports = {
   planifier, prendre, classer, TYPES, creneauxAVenir, estPasse, maintenantParis,
-  lundi, ajouterJours, aujourdhui, budgetSemaine, lieuDe,
+  lundi, ajouterJours, aujourdhui, budgetSemaine, lieuDe, cleCreneau,
 };

@@ -30,6 +30,7 @@ const SCHEMAS = {
       repas: ['Repas', 'title'], date: ['Date', 'date'], moment: ['Moment', 'select'],
       recette: ['Recette', 'relation', 'recettes'], cout: ['Coût estimé', 'number'],
       portions: ['Portions cuisinées', 'number'], restes: ['Restes', 'checkbox'], consomme: ['Consommé', 'checkbox'],
+      garde: ['Gardé', 'checkbox'], ailleurs: ['Mangé ailleurs', 'checkbox'],
     },
   },
   courses: {
@@ -123,3 +124,4 @@ function demo() {
 module.exports = process.env.NOTION_TOKEN
   ? require('./notion')(SCHEMAS, nettoyer, { recettes: recettesDemo })
   : demo();
+module.exports.SCHEMAS = SCHEMAS;

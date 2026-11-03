@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { lireLigne, tarifs, analyserRecette, PRODUITS } = require('./ingredients');
-const { planifier, prendre, classer, creneauxAVenir, lundi, lieuDe } = require('./planning');
+const { planifier, prendre, classer, creneauxAVenir, lundi, lieuDe, cleCreneau } = require('./planning');
 const { prixUnitaires } = require('./prix');
 const { lireRecette } = require('./marmiton');
 
@@ -105,6 +105,63 @@ test('planning : restes du soir le lendemain midi', () => {
   const plan2 = planifier({ recettes, produits, creneaux: sansMidi, reglages: { ...reglages, restes: true }, hasard: () => 0.5 });
   assert.strictEqual(plan2.repas[1].portions, 1);
   assert.ok(!plan2.repas[2].restes);
+});
+
+test('planning : repas gardés, mangé ailleurs, un seul repas changé', () => {
+  const recettes = [
+    ...['m1', 'm2', 'm3'].map((id) => ({ id, type: 'Midi simple', besoins: [{ nom: 'Pain', qte: 0.5 }] })),
+    ...['s1', 's2', 's3'].map((id) => ({ id, type: 'Plat du soir', besoins: [{ nom: 'Pâtes', qte: 0.1 }] })),
+  ];
+  const k = (c) => cleCreneau(c.date, c.moment);
+  const premier = planifier({ recettes, produits, creneaux, reglages, hasard: () => 0.5 });
+  // On change le 2e repas, tous les autres restent ; le 3e est mangé ailleurs.
+  const fixes = new Map(premier.repas.map((r) => [k(r), r]));
+  const cible = premier.repas[1];
+  fixes.delete(k(cible));
+  fixes.set(k(premier.repas[2]), { ...premier.repas[2], ailleurs: true });
+  const plan = planifier({ recettes, produits, creneaux, reglages, fixes, exclus: new Map([[k(cible), cible.recette]]), hasard: () => 0.5 });
+  plan.repas.forEach((r, i) => {
+    if (i === 1) assert.notStrictEqual(r.recette, cible.recette, 'le repas changé prend une autre recette');
+    else assert.strictEqual(r.recette, premier.repas[i].recette, 'les autres ne bougent pas');
+  });
+  assert.ok(plan.repas[2].ailleurs && plan.repas[2].cout === 0);
+  // Le repas mangé ailleurs n'est plus dans la liste : un paquet de pain de moins.
+  const pain = (p) => p.achats.find((a) => a.nom === 'Pain').besoin;
+  assert.ok(Math.abs(pain(premier) - pain(plan) - (premier.repas[2].moment === 'midi' ? 0.5 : 0)) < 1e-9);
+});
+
+test('cache Notion : une base n’est lue qu’une fois, les écritures le tiennent à jour', async () => {
+  const appels = [];
+  const lignes = [{ id: 'a', properties: { Nom: { type: 'title', title: [{ plain_text: 'Pâtes' }] } } }];
+  const ancien = global.fetch;
+  global.fetch = async (url, { method, body }) => {
+    const chemin = url.replace('https://api.notion.com/v1', '');
+    appels.push(`${method} ${chemin}`);
+    const repondre = (data) => ({ ok: true, status: 200, headers: new Map(), json: async () => data });
+    if (chemin.startsWith('/blocks/')) return repondre({ results: [{ type: 'child_database', id: 'base', child_database: { title: 'T' } }] });
+    if (chemin === '/databases/base') return repondre({ properties: { Nom: { title: {} } } });
+    if (chemin === '/databases/base/query') return repondre({ results: lignes, next_cursor: null });
+    const nom = JSON.parse(body).properties?.Nom?.title?.[0]?.text.content;
+    return repondre({ id: chemin === '/pages' ? 'b' : chemin.split('/')[2], properties: { Nom: { type: 'title', title: [{ plain_text: nom ?? '' }] } } });
+  };
+  process.env.NOTION_PAGE_ID = '0123456789abcdef0123456789abcdef';
+  try {
+    const SCHEMAS = { t: { titre: 'T', champs: { nom: ['Nom', 'title'] } } };
+    const notion = require('./notion')(SCHEMAS, (col, o) => o, {});
+    const [l1, l2] = await Promise.all([notion.list('t'), notion.list('t')]);
+    assert.deepStrictEqual(l1, [{ id: 'a', nom: 'Pâtes' }]);
+    assert.deepStrictEqual(l2, l1);
+    await notion.add('t', { nom: 'Riz' });
+    await notion.update('t', 'a', { nom: 'Pâtes complètes' });
+    l1[0].nom = 'modifié par l’appelant'; // ne doit pas toucher le cache
+    assert.deepStrictEqual(await notion.list('t'), [{ id: 'b', nom: 'Riz' }, { id: 'a', nom: 'Pâtes complètes' }]);
+    await notion.remove('t', 'b');
+    assert.deepStrictEqual(await notion.list('t'), [{ id: 'a', nom: 'Pâtes complètes' }]);
+    assert.strictEqual(appels.filter((a) => a.endsWith('/query')).length, 1, appels.join('\n'));
+  } finally {
+    global.fetch = ancien;
+    delete process.env.NOTION_PAGE_ID;
+  }
 });
 
 test('placard : conserve entamée à finir vite', () => {

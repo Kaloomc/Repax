@@ -126,26 +126,63 @@ module.exports = function notion(SCHEMAS, nettoyer, graines) {
   const creer = async (ids, col, obj) =>
     lire(col, await api('POST', '/pages', { parent: { database_id: ids[col] }, properties: proprietes(col, obj) }));
 
+  async function charger(col) {
+    const ids = await getBases();
+    // Base d'une autre appli pas encore créée au démarrage : on la recherche, sinon elle est vide.
+    if (SCHEMAS[col].externe && !ids[col]) ids[col] = (await chercher())[SCHEMAS[col].titre];
+    if (!ids[col]) return [];
+    const out = [];
+    let curseur;
+    do {
+      const r = await api('POST', `/databases/${ids[col]}/query`, { page_size: 100, ...(curseur && { start_cursor: curseur }) });
+      out.push(...r.results.map((p) => lire(col, p)));
+      curseur = r.next_cursor;
+    } while (curseur);
+    return out;
+  }
+
+  // Cache en mémoire : relire une base Notion coûte une requête par 100 lignes, à 3 requêtes par seconde.
+  // Repax est seul à écrire ses bases : ses propres écritures mettent le cache à jour. Il est quand même
+  // relu de temps en temps pour voir les modifications faites à la main dans Notion, et plus souvent
+  // pour les bases des autres applis (Présence, Courses payées).
+  const DUREE = { propre: 10 * 60e3, externe: 2 * 60e3 };
+  const cache = new Map(); // col → { lignes: Promise<[]>, quand }
+  function entree(col) {
+    const e = cache.get(col);
+    if (e && Date.now() - e.quand < DUREE[SCHEMAS[col].externe ? 'externe' : 'propre']) return e;
+    const neuve = { quand: Date.now() };
+    neuve.lignes = charger(col).catch((err) => {
+      if (cache.get(col) === neuve) cache.delete(col); // échec : on réessaiera au prochain appel
+      throw err;
+    });
+    cache.set(col, neuve);
+    return neuve;
+  }
+  // Applique une écriture au cache (même s'il est en train de se charger).
+  function muter(col, f) {
+    const e = cache.get(col);
+    if (!e) return;
+    e.lignes = e.lignes.then(f);
+    e.lignes.catch(() => {}); // l'erreur éventuelle remonte déjà à qui lit la base
+  }
+  const remplacer = (col, ligne) => muter(col, (l) => [...l.filter((x) => x.id !== ligne.id), ligne]);
+
   return {
     mode: 'notion',
-    async list(col) {
-      const ids = await getBases();
-      // Base d'une autre appli pas encore créée au démarrage : on la recherche, sinon elle est vide.
-      if (SCHEMAS[col].externe && !ids[col]) ids[col] = (await chercher())[SCHEMAS[col].titre];
-      if (!ids[col]) return [];
-      const out = [];
-      let curseur;
-      do {
-        const r = await api('POST', `/databases/${ids[col]}/query`, { page_size: 100, ...(curseur && { start_cursor: curseur }) });
-        out.push(...r.results.map((p) => lire(col, p)));
-        curseur = r.next_cursor;
-      } while (curseur);
-      return out;
+    list: async (col) => structuredClone(await entree(col).lignes),
+    async add(col, obj) {
+      const ligne = await creer(await getBases(), col, obj);
+      remplacer(col, ligne);
+      return ligne;
     },
-    add: async (col, obj) => creer(await getBases(), col, obj),
-    update: async (col, id, patch) => lire(col, await api('PATCH', `/pages/${id}`, { properties: proprietes(col, patch) })),
-    remove: async (col, id) => {
+    async update(col, id, patch) {
+      const ligne = lire(col, await api('PATCH', `/pages/${id}`, { properties: proprietes(col, patch) }));
+      remplacer(col, ligne);
+      return ligne;
+    },
+    async remove(col, id) {
       await api('PATCH', `/pages/${id}`, { archived: true });
+      muter(col, (l) => l.filter((x) => x.id !== id));
     },
   };
 };

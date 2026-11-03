@@ -113,19 +113,52 @@ function afficherSemaine() {
           <span class="moment">${r.moment}</span>
           <span class="nom">${r.lieu === 'Parents' ? '👨‍👩‍👦 Chez les parents' : '✈️ ' + esc(r.lieu)}</span>
         </div>` : `
-        <div class="repas">
+        <div class="repas ${r.ailleurs ? 'ailleurs' : ''}">
           <span class="moment">${r.moment}</span>
-          <span class="nom">${r.restes ? '♻️ Restes : ' : ICONES[r.type] ? ICONES[r.type] + ' ' : ''}${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.repas)}</a>` : esc(r.repas)}${r.supprimee ? ' <small>(recette supprimée)</small>' : ''}${r.portions > 1 && !r.restes ? ` <small>× ${r.portions} portions</small>` : ''}</span>
-          <span class="cout">${r.restes ? '' : r.cout > 0 ? euros(r.cout) : '<small>placard</small>'}</span>
+          <span class="nom">${r.restes ? '♻️ Restes : ' : ICONES[r.type] ? ICONES[r.type] + ' ' : ''}${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.repas)}</a>` : esc(r.repas)}${r.supprimee ? ' <small>(recette supprimée)</small>' : ''}${r.portions > 1 && !r.restes ? ` <small>× ${r.portions} portions</small>` : ''}${r.ailleurs ? ' <small>mangé ailleurs</small>' : ''}</span>
+          <span class="cout">${r.restes || r.ailleurs ? '' : r.cout > 0 ? euros(r.cout) : '<small>placard</small>'}</span>
+          <span class="actions">
+            ${r.ailleurs ? '' : `
+            <button class="icone ${r.garde ? 'actif' : ''}" data-action="garde" data-id="${esc(r.id)}" aria-pressed="${!!r.garde}" title="Garder ce repas quand je repropose" aria-label="Garder">📌</button>
+            <button class="icone" data-action="changer" data-id="${esc(r.id)}" title="Changer ce repas" aria-label="Changer">🔁</button>`}
+            <button class="icone ${r.ailleurs ? 'actif' : ''}" data-action="ailleurs" data-id="${esc(r.id)}" aria-pressed="${!!r.ailleurs}" title="${r.ailleurs ? 'Finalement je le mange' : 'Mangé ailleurs (rien à cuisiner)'}" aria-label="Mangé ailleurs">🍽️</button>
+          </span>
         </div>`).join('')}
     </div>`).join('');
 }
 
+// 📌 garder · 🔁 changer ce repas seulement · 🍽️ mangé ailleurs (la liste de courses est refaite)
+$('#jours').addEventListener('click', async (e) => {
+  const bouton = e.target.closest('button[data-action]');
+  if (!bouton) return;
+  const { action, id } = bouton.dataset;
+  const r = donnees.repas.find((x) => x.id === id);
+  document.querySelectorAll('#jours button, #proposer').forEach((b) => (b.disabled = true));
+  dire($('#message-semaine'), action === 'garde' ? '' : 'Je mets à jour les repas et la liste…');
+  try {
+    if (action === 'garde') {
+      await api(`/api/planning/${encodeURIComponent(id)}`, { method: 'PATCH', body: { garde: !r.garde } });
+      donnees = await api('/api/semaine');
+    } else if (action === 'ailleurs') {
+      await api(`/api/planning/${encodeURIComponent(id)}`, { method: 'PATCH', body: { ailleurs: !r.ailleurs } });
+      donnees = await api('/api/semaine', { method: 'POST', body: { recalculer: true } });
+    } else {
+      donnees = await api('/api/semaine', { method: 'POST', body: { changer: id } });
+    }
+    dire($('#message-semaine'), action === 'garde' ? '' : '✔ Liste de courses à jour.');
+  } catch (err) {
+    dire($('#message-semaine'), err.message);
+  }
+  afficherSemaine();
+  afficherCourses();
+  $('#proposer').disabled = false;
+});
+
 $('#proposer').addEventListener('click', async (e) => {
-  if (donnees?.repas.length && !confirm('Remplacer les repas à venir ? Ce que tu as déjà acheté reste au placard.')) return;
+  if (donnees?.repas.length && !confirm('Remplacer les repas à venir ? Les repas 📌 gardés ne bougent pas, et ce que tu as déjà acheté reste au placard.')) return;
   const bouton = e.target;
   bouton.disabled = true;
-  dire($('#message-semaine'), modeNotion ? 'Je choisis les repas et je les range dans Notion (20 à 30 secondes)…' : 'Je choisis les repas…');
+  dire($('#message-semaine'), modeNotion ? 'Je choisis les repas et je les range dans Notion (quelques secondes)…' : 'Je choisis les repas…');
   try {
     donnees = await api('/api/semaine', { method: 'POST', body: {} });
     afficherSemaine();
@@ -155,6 +188,10 @@ function ligneCourse(c) {
     <span class="cout">${euros(c.cout)}</span> ${badge(c.source)}`;
 }
 
+// Ordre de passage dans le Super U : on entre par les fruits et légumes, le frais est au fond.
+const RAYONS = ['Fruits & légumes', 'Épicerie', 'Viandes & poissons', 'Frais', 'Autres', 'Placard'];
+const rangRayon = (r) => (RAYONS.includes(r) ? RAYONS.indexOf(r) : RAYONS.length - 1.5);
+
 function afficherCourses() {
   const s = donnees;
   $('#resume-courses').innerHTML = `
@@ -169,7 +206,7 @@ function afficherCourses() {
     $('#liste-courses').innerHTML = '<p class="vide">La liste se remplit quand tu proposes les repas.</p>';
   } else {
     const rayons = Object.groupBy(s.courses, (c) => c.rayon);
-    const ordre = Object.keys(rayons).sort((a, b) => (a === 'Placard') - (b === 'Placard') || a.localeCompare(b, 'fr'));
+    const ordre = Object.keys(rayons).sort((a, b) => rangRayon(a) - rangRayon(b) || a.localeCompare(b, 'fr'));
     $('#liste-courses').innerHTML = ordre.map((rayon) => `
       <h3>${esc(rayon === 'Placard' ? 'Épices & condiments (à avoir)' : rayon)}</h3>
       <ul class="liste">
