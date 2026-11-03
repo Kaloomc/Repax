@@ -40,7 +40,8 @@ Au premier démarrage, l'appli crée toute seule les 5 bases dans cette page, av
 
 ## 3. Créer le projet dans Container Manager
 
-1. **File Station** → dossier `docker` → crée un dossier **`gestion-repas`** (laisse-le vide).
+1. **File Station** → dossier `docker` → crée un dossier **`gestion-repas`**, puis **dedans** un dossier vide **`app`**.
+   Sans ce dossier `app`, le démarrage échoue avec `Bind mount failed: ... /app does not exist` (Synology ne le crée pas tout seul).
 2. **Container Manager** → **Projet** → **Créer** :
    - Nom du projet : `gestion-repas`
    - Chemin : `/docker/gestion-repas`
