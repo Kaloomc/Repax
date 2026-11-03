@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { lireLigne, tarifs, analyserRecette, PRODUITS } = require('./ingredients');
-const { planifier, prendre, classer, creneauxAVenir, lundi } = require('./planning');
+const { planifier, prendre, classer, creneauxAVenir, lundi, lieuDe } = require('./planning');
 const { prixUnitaires } = require('./prix');
 const { lireRecette } = require('./marmiton');
 
@@ -140,4 +140,20 @@ test('lecture d’une page de recette Marmiton', () => {
     nom: 'Poulet basquaise', url: 'u', portions: 6, temps: 80, ingredients: '1 kg de tomates\nsel',
     difficulte: 'facile', typeMarmiton: 'plat-principal',
   });
+});
+
+test('présence lue dans la base Notion « Présence » (Agendix)', () => {
+  const lignes = [
+    { note: 'Lieu par défaut', lieu: 'Angoulême', ordre: 1 },
+    { du: '2026-11-20', duMoment: 'soir', au: '2026-11-22', auMoment: 'midi', lieu: 'Parents', ordre: 2 },
+    { du: '2026-11-21', duMoment: 'soir', au: '2026-11-21', auMoment: 'soir', lieu: 'Ailleurs', ordre: 3 },
+  ];
+  const ou = (date, moment) => lieuDe(lignes, date, moment);
+  assert.strictEqual(ou('2026-11-20', 'midi'), 'Angoulême'); // avant la borne
+  assert.strictEqual(ou('2026-11-20', 'soir'), 'Parents'); // borne de début comprise
+  assert.strictEqual(ou('2026-11-21', 'soir'), 'Ailleurs'); // la plus récente l'emporte
+  assert.strictEqual(ou('2026-11-22', 'midi'), 'Parents'); // borne de fin comprise
+  assert.strictEqual(ou('2026-11-22', 'soir'), 'Angoulême');
+  assert.strictEqual(lieuDe([{ lieu: 'Parents', ordre: 1 }], '2026-11-25', 'midi'), 'Parents'); // lieu par défaut changé
+  assert.strictEqual(lieuDe([], '2026-11-25', 'midi'), 'Angoulême'); // base vide ou absente
 });

@@ -13,16 +13,10 @@ services:
       - TZ=Europe/Paris
       # Jeton de l'intégration Notion (vide = mode démo, données dans le conteneur)
       - NOTION_TOKEN=
-      # Identifiant de la page Notion qui accueille les 5 bases
+      # Identifiant de la page Notion commune à Repax, Agendix et Argenx (même valeur dans les trois)
       - NOTION_PAGE_ID=
       # Mot de passe demandé une fois sur chaque téléphone (fortement conseillé : l'appli est sur Internet)
       - APP_PASSWORD=
-      # Liens avec les autres applis du NAS (facultatifs) : même CLE_INTERNE dans Repax, Argenx et Agendix
-      - CLE_INTERNE=
-      # Agendix : ne prévoir les repas que quand je suis à Angoulême
-      - AGENDIX_URL=http://192.168.1.45:3013
-      # Argenx : vraies dépenses de courses lues dans le relevé Revolut
-      - ARGENX_URL=http://192.168.1.45:3012
     volumes:
       - ./app:/app
     working_dir: /app

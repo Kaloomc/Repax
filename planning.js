@@ -179,7 +179,19 @@ function planifier({ recettes, produits, stock = [], creneaux, reglages, hasard 
   return { repas, achats: [...achats.values()], total: depense, gaspillage };
 }
 
+// --- Où suis-je à ce repas ? (base Notion « Présence », remplie par Agendix) -------------
+// La ligne sans date donne le lieu par défaut (Angoulême s'il n'y en a pas). Une période couvre les repas
+// entre ses deux bornes, bornes comprises ; si plusieurs la couvrent, la plus récente (Ordre) l'emporte.
+const cleCreneau = (date, moment) => `${date} ${moment === 'soir' ? 2 : 1}`;
+function lieuDe(presence, date, moment) {
+  const recente = (l) => [...l].sort((a, b) => (b.ordre ?? 0) - (a.ordre ?? 0))[0];
+  const k = cleCreneau(date, moment);
+  const p = recente(presence.filter((l) => l.du && l.lieu &&
+    cleCreneau(l.du, l.duMoment || 'midi') <= k && k <= cleCreneau(l.au || l.du, l.auMoment || 'soir')));
+  return p?.lieu ?? recente(presence.filter((l) => !l.du && l.lieu))?.lieu ?? 'Angoulême';
+}
+
 module.exports = {
   planifier, prendre, classer, TYPES, creneauxAVenir, estPasse, maintenantParis,
-  lundi, ajouterJours, aujourdhui, budgetSemaine,
+  lundi, ajouterJours, aujourdhui, budgetSemaine, lieuDe,
 };

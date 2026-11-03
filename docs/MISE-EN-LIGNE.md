@@ -34,7 +34,8 @@ git push -u origin main
 4. Copie le lien de la page (**•••** → **Copier le lien**). L'identifiant, ce sont les 32 caractères à la fin :
    `https://www.notion.so/Gestion-des-repas-`**`1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d`** → c'est `NOTION_PAGE_ID`.
 
-Au premier démarrage, l'appli crée toute seule les 5 bases dans cette page, avec les recettes d'exemple.
+Au premier démarrage, l'appli crée toute seule ses 6 bases dans cette page, avec les recettes d'exemple.
+**Garde ce jeton et cet identifiant** : Agendix et Argenx utilisent les mêmes (étape 9).
 
 ---
 
@@ -124,19 +125,18 @@ Pour changer un mot de passe ou un jeton : **Projet** → `gestion-repas` → **
 
 ---
 
-## 9. Relier Repax à Agendix et Argenx (facultatif)
+## 9. Relier Repax à Agendix et Argenx par Notion (facultatif)
 
-Les trois applis se parlent par le réseau de la maison, jamais par Internet, avec une **clé secrète commune**.
+Les trois applis ne se parlent pas directement : tout passe par **la même page Notion**.
 
-1. Choisis une clé longue et aléatoire (par exemple 40 lettres et chiffres au hasard). Garde-la pour toi.
-2. Dans le YAML de **chacun des trois projets** (`gestion-repas`, `argenx`, `agendix`), mets **la même valeur** : `CLE_INTERNE=ta-clé`.
-3. Dans `gestion-repas`, garde aussi :
-   - `AGENDIX_URL=http://192.168.1.45:3013` → Repax ne prévoit les repas que quand Agendix dit « Angoulême » ; les autres repas s'affichent « Chez les parents » ;
-   - `ARGENX_URL=http://192.168.1.45:3012` → l'onglet Budget compte tes vraies dépenses de courses par carte, lues dans le relevé Revolut d'Argenx.
-4. Dans `argenx`, mets `REPAX_URL=http://192.168.1.45:3011` pour qu'Argenx affiche les courses prévues.
-5. Redémarre les trois projets.
+1. Dans le YAML de **chacun des trois projets** (`gestion-repas`, `agendix`, `argenx`), mets **les mêmes valeurs** `NOTION_TOKEN` et `NOTION_PAGE_ID` (celles de l'étape 2).
+2. Redémarre les trois projets. Dans la page Notion apparaissent, à côté des bases de Repax :
+   - **Présence** (créée par Agendix) → Repax ne prévoit les repas que quand tu es à Angoulême ; les autres repas s'affichent « Chez les parents » ;
+   - **Courses payées** (créée par Argenx à l'envoi vers Notion) → l'onglet Budget compte tes vraies dépenses de courses par carte ;
+   - **Résumé mensuel** (Argenx).
+3. Argenx lit aussi « Liste de courses » et « Planning des repas » pour afficher les courses prévues.
 
-Si une appli ne répond pas, les autres continuent de marcher : Repax prévoit alors tous les repas et l'indique.
+Si une base manque, les autres applis continuent de marcher : Repax prévoit alors tous les repas.
 
 ---
 

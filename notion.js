@@ -1,6 +1,7 @@
 // Stockage dans Notion via l'API officielle (https://developers.notion.com).
 // NOTION_TOKEN   : jeton de l'intégration Notion (reste sur le serveur)
-// NOTION_PAGE_ID : page Notion qui contient les 5 bases ; elles sont créées au premier lancement si besoin.
+// NOTION_PAGE_ID : page Notion commune à Repax, Agendix et Argenx. Les 6 bases de Repax y sont créées
+//                  au premier lancement si besoin ; « Présence » (Agendix) et « Courses payées » (Argenx) y sont lues.
 const VERSION = '2022-06-28';
 
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -61,20 +62,30 @@ module.exports = function notion(SCHEMAS, nettoyer, graines) {
     }
   }
 
-  // Trouve les 5 bases dans la page, crée celles qui manquent.
-  let bases;
-  async function init() {
+  // Bases présentes dans la page : titre → id.
+  async function chercher() {
     if (!pageId) throw new Error('NOTION_PAGE_ID manquant : indique la page Notion qui accueille les bases.');
     const trouvees = {};
     let curseur;
     do {
       const r = await api('GET', `/blocks/${pageId}/children?page_size=100${curseur ? `&start_cursor=${curseur}` : ''}`);
-      for (const b of r.results) if (b.type === 'child_database') trouvees[b.child_database.title] = b.id;
+      for (const b of r.results) if (b.type === 'child_database') trouvees[b.child_database.title] ??= b.id;
       curseur = r.next_cursor;
     } while (curseur);
+    return trouvees;
+  }
 
+  // Trouve les bases dans la page, crée celles de Repax qui manquent.
+  let bases;
+  async function init() {
+    const trouvees = await chercher();
     const ids = {};
     for (const [col, s] of Object.entries(SCHEMAS)) {
+      // Base d'une autre appli (Agendix, Argenx) : on la lit telle quelle, sans la créer.
+      if (s.externe) {
+        ids[col] = trouvees[s.titre];
+        continue;
+      }
       const properties = {};
       for (const [nom, type, cible] of Object.values(s.champs)) {
         properties[nom] = type === 'relation' ? { relation: { database_id: ids[cible], single_property: {} } } : { [type]: {} };
@@ -119,6 +130,9 @@ module.exports = function notion(SCHEMAS, nettoyer, graines) {
     mode: 'notion',
     async list(col) {
       const ids = await getBases();
+      // Base d'une autre appli pas encore créée au démarrage : on la recherche, sinon elle est vide.
+      if (SCHEMAS[col].externe && !ids[col]) ids[col] = (await chercher())[SCHEMAS[col].titre];
+      if (!ids[col]) return [];
       const out = [];
       let curseur;
       do {

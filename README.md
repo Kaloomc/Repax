@@ -71,10 +71,12 @@ Les 7 prochains jours à partir du prochain repas (rien pour un repas déjà pas
 
 ## Liens avec Agendix et Argenx
 
-- **Agendix** dit où je suis pour chaque repas. Repax ne prévoit que les repas à Angoulême ; les autres s'affichent « Chez les parents ». Si Agendix ne répond pas, Repax prévoit tous les repas et le signale.
-- **Argenx** fournit les vraies dépenses de la catégorie Courses (relevé Revolut) : elles s'ajoutent à la saisie manuelle (à garder pour le liquide).
-- Repax expose `GET /api/prevision` (courses prévues sur les 7 prochains jours) pour qu'Argenx l'affiche.
-- Les appels entre applis passent par l'en-tête `X-Cle-Interne` (= `CLE_INTERNE`) ; voir l'étape 9 de [docs/MISE-EN-LIGNE.md](docs/MISE-EN-LIGNE.md).
+Les trois applis ne se parlent pas directement : elles partagent **la même page Notion** (même `NOTION_TOKEN` et même `NOTION_PAGE_ID`), chacune y range ses bases et lit celles des autres.
+
+- **Agendix** remplit la base « Présence » : où je suis pour chaque repas. Repax ne prévoit que les repas à Angoulême ; les autres s'affichent « Chez les parents ». Sans cette base, Repax prévoit tous les repas.
+- **Argenx** remplit la base « Courses payées » : les vraies dépenses de la catégorie Courses (relevé Revolut). Elles s'ajoutent à la saisie manuelle (à garder pour le liquide).
+- **Argenx** lit « Liste de courses » et « Planning des repas » pour afficher les courses prévues.
+- En mode démo (sans Notion), Repax fonctionne seul.
 
 ## Marmiton : à savoir
 
@@ -89,12 +91,9 @@ Variables d'environnement (jamais dans le dépôt) :
 | Variable | Rôle |
 |---|---|
 | `NOTION_TOKEN` | Jeton de ton intégration Notion. Vide = mode démo |
-| `NOTION_PAGE_ID` | Page Notion qui accueille les bases |
+| `NOTION_PAGE_ID` | Page Notion qui accueille les bases (la même pour Repax, Agendix et Argenx) |
 | `APP_PASSWORD` | Mot de passe de l'appli (conseillé dès qu'elle est sur Internet) |
 | `PORT` | Port du serveur (3011 par défaut) |
-| `CLE_INTERNE` | Clé secrète commune à Repax, Argenx et Agendix pour qu'elles se parlent sur le réseau du NAS |
-| `AGENDIX_URL` | Adresse d'Agendix (ex. `http://192.168.1.45:3013`) : repas prévus seulement quand je suis à Angoulême |
-| `ARGENX_URL` | Adresse d'Argenx (ex. `http://192.168.1.45:3012`) : vraies dépenses de courses par carte dans l'onglet Budget |
 
 Au premier lancement avec Notion, l'appli **crée elle-même les 6 bases** (et ajoute les colonnes qui manquent après une mise à jour) dans la page (si elles n'y sont pas déjà), et ajoute les recettes d'exemple :
 
@@ -106,6 +105,8 @@ Au premier lancement avec Notion, l'appli **crée elle-même les 6 bases** (et a
 | Liste de courses | Article · Paquets · Quantité · Besoin · Unité · Produit (→ Produits) · Coût estimé · Acheté · Pour le · Source du prix |
 | Garde-manger | Produit · Quantité · Unité · Acheté le · À finir avant · Origine |
 | Budget & dépenses | Libellé · Type (Budget / Dépense) · Montant · Date · Période · Magasin · Personnes · Repas · Restes le midi |
+
+Les bases « Présence » (Agendix) et « Courses payées » (Argenx) sont lues, jamais créées ni modifiées par Repax.
 
 Les réglages de l'appli sont la ligne de type « Budget » de la dernière base. Ne renomme pas les bases ni les colonnes : l'appli les retrouve par leur nom.
 

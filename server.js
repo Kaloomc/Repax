@@ -7,7 +7,7 @@ const prix = require('./prix');
 const { CATALOGUE, PRODUITS, SOURCES, tarifs, analyserRecette } = require('./ingredients');
 const {
   planifier, prendre, classer, TYPES, creneauxAVenir, estPasse, maintenantParis,
-  lundi, ajouterJours, aujourdhui, budgetSemaine,
+  lundi, ajouterJours, aujourdhui, budgetSemaine, lieuDe,
 } = require('./planning');
 
 const app = express();
@@ -32,17 +32,7 @@ app.post('/api/connexion', async (req, res) => {
   res.json({ ok: true });
 });
 
-// Les autres applis du NAS (Agendix, Argenx) passent par l'en-tête X-Cle-Interne = CLE_INTERNE.
-const CLE_INTERNE = process.env.CLE_INTERNE;
-const signerCle = (s) => crypto.createHmac('sha256', s).update('cle-interne').digest('hex');
-
 app.use('/api', (req, res, next) => {
-  const cleRecue = req.get('X-Cle-Interne');
-  if (cleRecue !== undefined) {
-    // Empreintes de même longueur : comparaison à temps constant quelle que soit la clé reçue.
-    if (CLE_INTERNE && egal(signerCle(cleRecue), signerCle(CLE_INTERNE))) return next();
-    return res.status(401).json({ erreur: 'Clé interne refusée' });
-  }
   if (!MOT_DE_PASSE || req.path === '/etat') return next();
   const cookie = (req.headers.cookie || '').match(/(?:^|;\s*)repas=([a-f0-9]+)/)?.[1] || '';
   if (egal(cookie, jeton)) return next();
@@ -87,29 +77,18 @@ async function contexte() {
 const nbIngredients = (a) => a.lignes.filter((l) => !l.placard).length;
 const typeDe = (r, a) => r.type || classer(r.nom, nbIngredients(a), r.difficulte || '');
 
-// --- Liens avec les autres applis du NAS ---------------------------------------
-async function appelInterne(base, chemin) {
-  const res = await fetch(base.replace(/\/$/, '') + chemin, {
-    headers: { 'X-Cle-Interne': CLE_INTERNE },
-    signal: AbortSignal.timeout(3000),
-  });
-  if (!res.ok) throw new Error(`${base} a répondu ${res.status}`);
-  return res.json();
-}
-
-// Où suis-je, repas par repas ? (Agendix) → { lieux: Map('2026-11-03soir' → 'Angoulême'), erreur }
-// Sans Agendix configuré : toujours à Angoulême.
-async function presence(du, au) {
-  if (!process.env.AGENDIX_URL || !CLE_INTERNE) return { lieux: null, erreur: null };
+// --- Liens avec les autres applis : tout passe par la page Notion commune ---------------
+// Où suis-je, repas par repas ? Lu dans la base « Présence » d'Agendix.
+// → { lieu(c) : 'Angoulême' | 'Parents' | 'Ailleurs', erreur }. Base absente : toujours à Angoulême.
+async function presence() {
   try {
-    const r = await appelInterne(process.env.AGENDIX_URL, `/api/presence?du=${du}&au=${au}`);
-    return { lieux: new Map(r.creneaux.map((c) => [c.date + c.moment, c.lieu])), erreur: null };
+    const lignes = await store.list('presence');
+    return { lieu: (c) => lieuDe(lignes, c.date, c.moment), erreur: null };
   } catch (err) {
-    console.error('Agendix :', err.message);
-    return { lieux: null, erreur: 'Agendix ne répond pas : je prévois tous les repas.' };
+    console.error('Présence (Agendix) :', err.message);
+    return { lieu: () => 'Angoulême', erreur: 'Base Notion « Présence » illisible : je prévois tous les repas.' };
   }
 }
-const aAngouleme = (lieux, c) => !lieux || (lieux.get(c.date + c.moment) ?? 'Angoulême') === 'Angoulême';
 
 // Vérifie qu'une ligne appartient bien à la base avant de la modifier.
 async function trouver(col, id) {
@@ -266,11 +245,11 @@ async function vue() {
     .map((c) => ({ ...c, rayon: c.unite === 'placard' ? 'Placard' : rayonDe(c.article) }))
     .sort((a, b) => a.rayon.localeCompare(b.rayon, 'fr') || a.article.localeCompare(b.article, 'fr'));
   const creneaux = creneauxAVenir(regl.repas, m);
-  const { lieux, erreur } = await presence(creneaux[0].date, creneaux[creneaux.length - 1].date);
+  const { lieu, erreur } = await presence();
   return {
     debut: creneaux[0].date,
     fin: creneaux[creneaux.length - 1].date,
-    absences: creneaux.filter((c) => !aAngouleme(lieux, c)).map((c) => ({ ...c, lieu: lieux.get(c.date + c.moment) })),
+    absences: creneaux.map((c) => ({ ...c, lieu: lieu(c) })).filter((c) => c.lieu !== 'Angoulême'),
     agendix: erreur,
     budget: arrondi(budgetSemaine(regl)),
     restes: regl.restes,
@@ -299,9 +278,8 @@ app.post('/api/semaine', async (req, res) => {
     ]);
     verifier(recettes.length > 0, "Ajoute d'abord quelques recettes.");
     // Seulement les repas où je suis à Angoulême (d'après Agendix).
-    const tous = creneauxAVenir(regl.repas, m);
-    const { lieux } = await presence(tous[0].date, tous[tous.length - 1].date);
-    const creneaux = tous.filter((c) => aAngouleme(lieux, c));
+    const { lieu } = await presence();
+    const creneaux = creneauxAVenir(regl.repas, m).filter((c) => lieu(c) === 'Angoulême');
     const produits = new Map(CATALOGUE.filter((e) => !e.placard).map((e) => [e.nom, { ...e, prix: t.get(e.nom).prix }]));
 
     const plan = planifier({
@@ -350,13 +328,6 @@ app.post('/api/semaine', async (req, res) => {
     return plan.gaspillage.map((g) => ({ nom: g.nom, valeur: arrondi(g.valeur) })).filter((g) => g.valeur >= 0.05);
   });
   res.json({ ...(await vue()), gaspillage });
-});
-
-// Pour Argenx : les courses prévues sur les 7 prochains jours.
-app.get('/api/prevision', async (req, res) => {
-  await enSerie(consommerPasses);
-  const v = await vue();
-  res.json({ du: v.debut, au: v.fin, total: v.total, resteAAcheter: v.resteAAcheter, repas: v.repas.filter((r) => !r.restes).length });
 });
 
 // Cocher un article : le paquet entier entre au placard. Décocher : il en ressort.
@@ -419,16 +390,22 @@ app.get('/api/budget', async (req, res) => {
     .filter((d) => d.type === 'Dépense')
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const dansPeriode = depenses.filter((d) => d.date >= debut && d.date <= fin);
-  // Avec Argenx : les vraies dépenses « Courses » du relevé Revolut, en plus de la saisie à la main (liquide…).
+  // Avec Argenx : les vraies dépenses « Courses » du relevé Revolut (base Notion « Courses payées »),
+  // en plus de la saisie à la main (liquide…).
   let argenx = null, erreurArgenx = null;
-  if (process.env.ARGENX_URL && CLE_INTERNE) {
-    try {
-      const r = await appelInterne(process.env.ARGENX_URL, `/api/courses-reelles?du=${debut}&au=${fin}`);
-      argenx = { total: arrondi(r.total), operations: r.operations.slice(0, 50) };
-    } catch (err) {
-      console.error('Argenx :', err.message);
-      erreurArgenx = 'Argenx ne répond pas : seules les dépenses saisies ici sont comptées.';
+  try {
+    const payees = (await store.list('coursesPayees'))
+      .filter((o) => o.date >= debut && o.date <= fin && Number.isFinite(o.montant))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (payees.length) {
+      argenx = {
+        total: arrondi(payees.reduce((s, o) => s + o.montant, 0)),
+        operations: payees.slice(0, 50).map((o) => ({ date: o.date, libelle: o.libelle, montant: o.montant })),
+      };
     }
+  } catch (err) {
+    console.error('Courses payées (Argenx) :', err.message);
+    erreurArgenx = 'Base Notion « Courses payées » illisible : seules les dépenses saisies ici sont comptées.';
   }
   const depense = arrondi(dansPeriode.reduce((s, d) => s + (d.montant || 0), 0) + (argenx?.total || 0));
   res.json({ ...regl, debut, fin, depense, reste: arrondi(regl.budget - depense), depenses: depenses.slice(0, 50), argenx, erreurArgenx });

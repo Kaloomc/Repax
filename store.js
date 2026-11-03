@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-// Les 5 bases. clé JS → [nom de la colonne Notion, type Notion, base liée]
+// Les 6 bases de Repax, puis celles d'Agendix et d'Argenx. clé JS → [nom de la colonne Notion, type Notion, base liée]
 // L'ordre compte : une base liée doit être créée avant celle qui la référence.
 const SCHEMAS = {
   produits: {
@@ -54,6 +54,18 @@ const SCHEMAS = {
       periode: ['Période', 'select'], magasin: ['Magasin', 'rich_text'], personnes: ['Personnes', 'number'],
       repas: ['Repas', 'multi_select'], restes: ['Restes le midi', 'checkbox'],
     },
+  },
+  // Bases des autres applis, dans la même page Notion : lues seulement, jamais créées ni modifiées ici.
+  presence: {
+    titre: 'Présence', externe: true, // remplie par Agendix
+    champs: {
+      note: ['Note', 'title'], du: ['Du', 'date'], duMoment: ['Moment de début', 'select'],
+      au: ['Au', 'date'], auMoment: ['Moment de fin', 'select'], lieu: ['Lieu', 'select'], ordre: ['Ordre', 'number'],
+    },
+  },
+  coursesPayees: {
+    titre: 'Courses payées', externe: true, // remplie par Argenx (relevé Revolut, catégorie Courses)
+    champs: { libelle: ['Libellé', 'title'], date: ['Date', 'date'], montant: ['Montant', 'number'] },
   },
 };
 
