@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { lireLigne, tarifs, analyserRecette, PRODUITS, definirSynonymes } = require('./ingredients');
-const { planifier, prendre, classer, creneauxAVenir, lundi, lieuDe, cleCreneau, raisonsExclusion, difficulteDe } = require('./planning');
+const { planifier, prendre, classer, creneauxAVenir, lundi, lieuDe, cleCreneau, raisonsExclusion, difficulteDe, difficulteLisible } = require('./planning');
 const { prixUnitaires } = require('./prix');
 const { lireRecette } = require('./marmiton');
 
@@ -190,12 +190,12 @@ test('prix Open Prices : au kilo et filtrés par nom', () => {
 });
 
 test('lecture d’une page de recette Marmiton', () => {
-  const html = `<script type="application/ld+json">{"@type":"Recipe","name":"Poulet basquaise : la meilleure recette","recipeYield":"6 personnes","totalTime":"PT1H20M","recipeIngredient":["1 kg de tomates","sel"],"recipeInstructions":[{"@type":"HowToStep","text":"Couper les  tomates."},{"@type":"HowToStep","text":"Cuire."}]}</script>
+  const html = `<script type="application/ld+json">{"@type":"Recipe","name":"Poulet basquaise : la meilleure recette","recipeYield":"6 personnes","totalTime":"PT1H20M","recipeIngredient":["1 kg de tomates","sel"],"image":{"url":"https://img.example/p.jpg"},"recipeInstructions":[{"@type":"HowToStep","text":"Couper les  tomates."},{"@type":"HowToStep","text":"Cuire."}]}</script>
     <script>{"recipeType":"plat-principal","recipeDifficulty":"facile"}</script>`;
   const r = lireRecette(html, 'u');
   assert.deepStrictEqual(r, {
     nom: 'Poulet basquaise', url: 'u', portions: 6, temps: 80, ingredients: '1 kg de tomates\nsel',
-    difficulte: 'facile', typeMarmiton: 'plat-principal', etapes: '1. Couper les tomates.\n2. Cuire.',
+    difficulte: 'facile', typeMarmiton: 'plat-principal', image: 'https://img.example/p.jpg', etapes: '1. Couper les tomates.\n2. Cuire.',
   });
 });
 
@@ -211,6 +211,8 @@ test('recettes exclues : je n’aime pas, fruits de mer, pas de four', () => {
   assert.deepStrictEqual(raisons('Pâtes carbonara', '200 g de lardons', '1. Faire revenir les lardons à la poêle.'), []);
   assert.strictEqual(difficulteDe(3, '1. a\n2. b'), 'très facile');
   assert.strictEqual(difficulteDe(10, ''), 'moyenne');
+  assert.strictEqual(difficulteLisible('tresfacile'), 'très facile');
+  assert.deepStrictEqual(raisons('Hachis parmentier', '1 kg de pommes de terre'), ['four']);
 });
 
 test('synonymes choisis dans « À vérifier »', () => {

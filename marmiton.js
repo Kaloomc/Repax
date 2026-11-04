@@ -56,6 +56,7 @@ function lireRecette(html, url) {
       portions: parseInt([r.recipeYield].flat()[0], 10) || 4,
       temps: minutes(r.totalTime),
       ingredients: (r.recipeIngredient || []).join('\n'),
+      image: [r.image].flat().map((x) => (typeof x === 'string' ? x : x?.url)).find((u) => /^https:\/\//.test(u || '')) || null,
       // Étapes numérotées, une par ligne (comme dans la base Notion).
       etapes: [r.recipeInstructions || []].flat()
         .map((e) => String(typeof e === 'string' ? e : e?.text || '').replace(/\s+/g, ' ').trim())

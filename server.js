@@ -8,7 +8,7 @@ const { CATALOGUE, PRODUITS, SOURCES, tarifs, analyserRecette, definirSynonymes,
 const {
   planifier, prendre, classer, TYPES, creneauxAVenir, estPasse, maintenantParis,
   lundi, ajouterJours, aujourdhui, budgetSemaine, lieuDe, cleCreneau,
-  raisonsExclusion, difficulteDe, EXCLUSIONS_DEFAUT,
+  raisonsExclusion, difficulteDe, difficulteLisible, EXCLUSIONS_DEFAUT,
 } = require('./planning');
 
 const app = express();
@@ -80,6 +80,8 @@ async function contexte() {
   return { recettes, produits, t, analyses };
 }
 
+// Ingrédients qui rendent une recette non végétarienne.
+const VIANDE = new Set([...CATALOGUE.filter((e) => e.rayon === 'Viandes & poissons').map((e) => e.nom), 'Jambon', 'Lardons', 'Chorizo', 'Thon en boîte']);
 const nbIngredients = (a) => a.lignes.filter((l) => !l.placard).length;
 const typeDe = (r, a) => r.type || classer(r.nom, nbIngredients(a), r.difficulte || '');
 // Recettes jamais proposées (four, plats que je n'aime pas) : id → raisons.
@@ -166,8 +168,9 @@ app.put('/api/reglages', async (req, res) => {
 // --- Recettes ----------------------------------------------------------------
 const resumeRecette = (r, a, raisons = []) => ({
   id: r.id, nom: r.nom, url: r.url, portions: a.portions, temps: r.temps,
-  difficulte: r.difficulte || difficulteDe(nbIngredients(a), r.etapes), etapes: r.etapes || '',
-  type: typeDe(r, a), nbIngredients: nbIngredients(a), exclue: raisons,
+  difficulte: difficulteLisible(r.difficulte) || difficulteDe(nbIngredients(a), r.etapes), etapes: r.etapes || '',
+  type: typeDe(r, a), nbIngredients: nbIngredients(a), exclue: raisons, favori: !!r.favori, image: r.image || null,
+  vege: !a.lignes.some((l) => VIANDE.has(l.nom)),
   cout: arrondi(a.cout), coutPortion: arrondi(a.coutPortion), estime: a.estime,
   lignes: a.lignes.map((l) => ({
     brut: l.brut, nom: l.nom, qte: l.qte, unite: l.unite, cout: arrondi(l.cout), source: l.source,
@@ -176,9 +179,16 @@ const resumeRecette = (r, a, raisons = []) => ({
 });
 
 app.get('/api/recettes', async (req, res) => {
-  const [{ recettes, analyses }, regl] = await Promise.all([contexte(), reglages()]);
+  const [{ recettes, analyses }, regl, stock] = await Promise.all([contexte(), reglages(), store.list('stock')]);
   const exclues = exclusionsDe(recettes, analyses, regl);
-  res.json(recettes.map((r) => resumeRecette(r, analyses.get(r.id), exclues.get(r.id))).sort((a, b) => a.nom.localeCompare(b.nom, 'fr')));
+  const auPlacard = new Set(stock.filter((s) => s.quantite > 0 && s.peremption >= aujourdhui()).map((s) => s.nom));
+  res.json(recettes.map((r) => {
+    const a = analyses.get(r.id);
+    const utiles = a.lignes.filter((l) => !l.placard && !l.inconnu);
+    // Part des ingrédients déjà au placard (filtre « Avec mon stock »).
+    const enStock = utiles.length ? utiles.filter((l) => auPlacard.has(l.nom)).length / utiles.length : 0;
+    return { ...resumeRecette(r, a, exclues.get(r.id)), enStock };
+  }).sort((a, b) => a.nom.localeCompare(b.nom, 'fr')));
 });
 
 // Fiche d'une recette (ingrédients et étapes), ouverte depuis un repas du planning.
@@ -207,15 +217,20 @@ app.post('/api/recettes', async (req, res) => {
   const r = await marmiton.recuperer(url);
   const a = analyserRecette(r, t);
   const type = classer(r.nom, nbIngredients(a), r.difficulte || '', r.typeMarmiton || '');
-  const ligne = await store.add('recettes', { ...r, type, cout: arrondi(a.cout), coutPortion: arrondi(a.coutPortion), dateRecup: aujourdhui() });
+  const ligne = await store.add('recettes', { ...r, difficulte: difficulteLisible(r.difficulte) || null, type, cout: arrondi(a.cout), coutPortion: arrondi(a.coutPortion), dateRecup: aujourdhui() });
   declencher();
   res.json({ id: ligne.id, nom: ligne.nom, type });
 });
 
 app.patch('/api/recettes/:id', async (req, res) => {
-  verifier(TYPES.includes(req.body?.type), 'Type de repas inconnu');
+  const patch = {};
+  if (req.body?.type !== undefined) patch.type = req.body.type;
+  if (req.body?.favori !== undefined) patch.favori = req.body.favori;
+  verifier(Object.keys(patch).length, 'Rien à changer');
+  verifier(patch.type === undefined || TYPES.includes(patch.type), 'Type de repas inconnu');
+  verifier(patch.favori === undefined || typeof patch.favori === 'boolean', 'Favori invalide');
   await trouver('recettes', req.params.id);
-  await store.update('recettes', req.params.id, { type: req.body.type });
+  await store.update('recettes', req.params.id, patch);
   declencher();
   res.json({ ok: true });
 });
@@ -265,12 +280,16 @@ async function vue() {
     store.list('planning'), store.list('courses'), store.list('stock'), reglages(), contexte(),
   ]);
   const parId = new Map(recettes.map((r) => [r.id, r]));
+  // Les repas d'aujourd'hui restent affichés toute la journée, même une fois passés.
   const repas = planning
-    .filter((p) => !estPasse(p.date, p.moment, m))
+    .filter((p) => p.date && p.date >= m.date && p.date <= ajouterJours(m.date, 8))
     .sort((a, b) => (a.date + a.moment).localeCompare(b.date + b.moment))
     .map((p) => {
       const r = parId.get(p.recette);
-      return { ...p, url: r?.url || null, type: r ? typeDe(r, analyses.get(r.id)) : null, supprimee: !r };
+      return {
+        ...p, url: r?.url || null, type: r ? typeDe(r, analyses.get(r.id)) : null, supprimee: !!p.recette && !r,
+        temps: r?.temps ?? null, image: r?.image || null, passe: estPasse(p.date, p.moment, m),
+      };
     });
   const liste = courses
     .map((c) => ({ ...c, rayon: c.unite === 'placard' ? 'Placard' : rayonDe(c.article) }))
@@ -278,6 +297,8 @@ async function vue() {
   const creneaux = creneauxAVenir(regl.repas, m);
   const { lieu, erreur } = await presence();
   return {
+    aujourdhui: m.date,
+    annulable: !!annulation,
     debut: creneaux[0].date,
     fin: creneaux[creneaux.length - 1].date,
     absences: creneaux.map((c) => ({ ...c, lieu: lieu(c) })).filter((c) => c.lieu !== 'Angoulême'),
@@ -327,6 +348,9 @@ async function remplacerLignes(col, anciennes, lignes, cle) {
 // et une ligne de courses ajoutée à la main (sans « Source du prix ») ne sont jamais touchées.
 const manuelle = (c) => !c.source && c.unite !== 'placard';
 
+// Dernière proposition faite à la main : on garde l'état d'avant 10 minutes pour pouvoir l'annuler.
+let annulation = null;
+
 async function proposer({ changer, completer = false } = {}) {
   const m = maintenantParis();
   const [{ recettes, t, analyses }, regl, planning, courses, stock] = await Promise.all([
@@ -365,6 +389,7 @@ async function proposer({ changer, completer = false } = {}) {
         id: r.id,
         type: typeDe(r, a),
         exclue: exclues.has(r.id),
+        favori: !!r.favori,
         besoins: a.lignes.filter((l) => !l.placard).map((l) =>
           l.inconnu ? { nom: l.nom, inconnu: true, cout: l.cout / a.portions } : { nom: l.nom, qte: l.qte / a.portions }
         ),
@@ -402,6 +427,13 @@ async function proposer({ changer, completer = false } = {}) {
         })),
     ...[...epices].map((e) => complet('courses', { article: e[0].toUpperCase() + e.slice(1), unite: 'placard', cout: 0, achete: false })),
   ];
+  if (!completer) {
+    annulation = {
+      quand: Date.now(),
+      planning: geres.map((p) => complet('planning', p)),
+      courses: courses.filter((c) => !c.achete && !manuelle(c)).map((c) => complet('courses', c)),
+    };
+  }
   // Un article acheté reste affiché (coché) le jour même et le lendemain, puis quitte la liste : il est au placard.
   const hier = ajouterJours(m.date, -1);
   const anciens = courses.filter((c) => c.achete && !manuelle(c) && !stock.some((s) => s.origine === c.id && s.achat >= hier));
@@ -420,6 +452,52 @@ app.post('/api/semaine', async (req, res) => {
     return proposer({ changer: req.body?.changer, completer });
   });
   res.json({ ...(await vue()), gaspillage });
+});
+
+app.post('/api/semaine/annuler', async (req, res) => {
+  await enSerie(async () => {
+    verifier(annulation && Date.now() - annulation.quand < 10 * 60e3, 'Plus rien à annuler');
+    const m = maintenantParis();
+    const cle = (p) => cleCreneau(p.date, p.moment);
+    const [planning, courses] = await Promise.all([store.list('planning'), store.list('courses')]);
+    const aVenir = planning.filter((p) => p.date && p.moment && !p.consomme && !estPasse(p.date, p.moment, m) && (p.recette || p.ailleurs));
+    await Promise.all([
+      remplacerLignes('planning', aVenir, annulation.planning.filter((p) => !estPasse(p.date, p.moment, m)), cle),
+      remplacerLignes('courses', courses.filter((c) => !c.achete && !manuelle(c)), annulation.courses, (c) => c.article),
+    ]);
+    annulation = null;
+  });
+  res.json(await vue());
+});
+
+// ➕ Ajouter une recette au planning, à un repas donné : elle y est 📌 gardée.
+app.post('/api/planning', async (req, res) => {
+  const { recette, date, moment } = req.body ?? {};
+  verifier(/^\d{4}-\d{2}-\d{2}$/.test(date || '') && ['midi', 'soir'].includes(moment), 'Repas invalide');
+  verifier(!estPasse(date, moment, maintenantParis()), 'Ce repas est déjà passé');
+  await enSerie(async () => {
+    const [r, regl, planning] = await Promise.all([trouver('recettes', recette), reglages(), store.list('planning')]);
+    const ligne = { repas: r.nom, date, moment, recette: r.id, portions: regl.personnes, restes: false, garde: true, ailleurs: false, consomme: false };
+    const existant = planning.find((p) => p.date === date && p.moment === moment && !p.consomme);
+    if (existant) await store.update('planning', existant.id, ligne);
+    else await store.add('planning', ligne);
+  });
+  declencher();
+  res.json({ ok: true });
+});
+
+// 🛒 Article libre dans la liste (« papier toilette ») : jamais touché par le planning automatique.
+app.post('/api/courses', async (req, res) => {
+  const article = String(req.body?.article || '').trim().slice(0, 80);
+  verifier(article, 'Article vide');
+  res.json(await store.add('courses', { article, achete: false }));
+});
+
+app.delete('/api/courses/:id', async (req, res) => {
+  const c = await trouver('courses', req.params.id);
+  verifier(manuelle(c), 'Seuls les articles ajoutés à la main se suppriment ici');
+  await store.remove('courses', c.id);
+  res.json({ ok: true });
 });
 
 // --- Mode automatique (remplace la tâche planifiée « Planning repas quotidien ») -------------
@@ -585,7 +663,30 @@ app.get('/api/budget', async (req, res) => {
   const prevu = arrondi((await store.list('planning'))
     .filter((p) => p.date >= debut && p.date <= fin && !p.ailleurs)
     .reduce((s, p) => s + (p.cout || 0), 0));
-  res.json({ ...regl, debut, fin, depense, prevu, reste: arrondi(regl.budget - depense), depenses: depenses.slice(0, 50), argenx, erreurArgenx });
+  // 8 dernières semaines : budget, payé (saisi + Argenx) et prévu (repas).
+  const [planning, payees, courses] = await Promise.all([
+    store.list('planning'), store.list('coursesPayees').catch(() => []), store.list('courses'),
+  ]);
+  const somme = (lignes, du, au, champ) => lignes.filter((x) => x.date >= du && x.date <= au).reduce((s, x) => s + (x[champ] || 0), 0);
+  const historique = Array.from({ length: 8 }, (_, i) => {
+    const du = ajouterJours(lundi(jour), -7 * (7 - i)), au = ajouterJours(du, 6);
+    return {
+      du,
+      budget: arrondi(budgetSemaine(regl)),
+      paye: arrondi(somme(depenses, du, au, 'montant') + somme(payees, du, au, 'montant')),
+      prevu: arrondi(somme(planning.filter((p) => !p.ailleurs), du, au, 'cout')),
+    };
+  });
+  // Fin du mois : déjà payé ce mois-ci + ce qui reste à acheter dans la liste.
+  const debutMois = jour.slice(0, 8) + '01';
+  const payeMois = somme(depenses, debutMois, jour, 'montant') + somme(payees, debutMois, jour, 'montant');
+  const resteAAcheter = courses.filter((c) => !c.achete).reduce((s, c) => s + (c.cout || 0), 0);
+  const mois = {
+    paye: arrondi(payeMois),
+    projection: arrondi(payeMois + resteAAcheter),
+    budget: arrondi(regl.periode === 'mois' ? regl.budget : (regl.budget * 52) / 12),
+  };
+  res.json({ ...regl, debut, fin, depense, prevu, reste: arrondi(regl.budget - depense), depenses: depenses.slice(0, 50), argenx, erreurArgenx, historique, mois });
 });
 
 app.post('/api/depenses', async (req, res) => {

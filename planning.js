@@ -46,7 +46,7 @@ const MOTS_MIDI = ['salade', 'sandwich', 'wrap', 'croque', 'tartine', 'panini', 
 function classer(nom, nbIngredients, difficulte = '', typeMarmiton = '') {
   const n = ' ' + norm(nom);
   if (MOTS_MIDI.some((m) => n.includes(' ' + m))) return 'Midi simple';
-  const d = norm(difficulte);
+  const d = norm(difficulteLisible(difficulte));
   if (norm(typeMarmiton).startsWith('entree') && nbIngredients <= 8) return 'Midi simple';
   if (d.startsWith('tres facile') && nbIngredients <= 5) return 'Les deux';
   return 'Plat du soir';
@@ -61,7 +61,7 @@ const FAMILLES = {
   soupe: ['soupe', 'potage'],
 };
 // Plats qui demandent un four (dans le nom ou les étapes).
-const FOUR = /(^| )(four|fours|enfourn\w*|prechauff\w*|thermostat|gratin\w*|tarte|tartes|quiche|lasagnes?|clafoutis|cake|pizza|roti|feuillete)( |$)/;
+const FOUR = /(^| )(four|fours|enfourn\w*|prechauff\w*|thermostat|gratin\w*|tarte|tartes|quiche|lasagnes?|clafoutis|cake|pizza|roti|feuillete|parmentier|moussaka|crumble|souffle|muffins?|brownie)( |$)/;
 
 // Pourquoi une recette n'est pas proposée (liste vide = elle l'est).
 // Les mots exclus sont cherchés dans le nom et les ingrédients (sans les unités : « cuillère à soupe » ne compte pas).
@@ -74,6 +74,12 @@ function raisonsExclusion(recette, lignes, { exclusions = '', sansFour = false }
   }
   if (sansFour && FOUR.test(norm(recette.nom + ' ' + (recette.etapes || '')))) raisons.push('four');
   return raisons;
+}
+
+// Difficulté Marmiton (« tresfacile », « Niveau moyen »…) → texte lisible.
+function difficulteLisible(d) {
+  const k = norm(d || '').replace(/niveau|[\s-]/g, '');
+  return { tresfacile: 'très facile', facile: 'facile', moyen: 'moyenne', moyenne: 'moyenne', difficile: 'difficile' }[k] || d || '';
 }
 
 // Difficulté devinée quand la recette n'en a pas : nombre d'ingrédients (hors épices) et d'étapes.
@@ -210,7 +216,7 @@ function planifier({ recettes, produits, stock = [], creneaux, reglages, fixes =
       const possibles = sims.filter((x) => depense + x.s.cout <= budget - reserve + EPS);
       choix = possibles.length
         ? possibles
-            .map((x) => ({ ...x, score: -x.s.cout + 1.5 * x.s.valeurStock - 4 * (utilisations.get(x.r.id) || 0) + hasard() * 1.5 }))
+            .map((x) => ({ ...x, score: -x.s.cout + 1.5 * x.s.valeurStock - 4 * (utilisations.get(x.r.id) || 0) + (x.r.favori ? 1 : 0) + hasard() * 1.5 }))
             .sort((a, b) => b.score - a.score)[0]
         : sims.reduce((a, b) => (a.s.cout <= b.s.cout ? a : b)); // budget dépassé : le moins cher
     }
@@ -256,5 +262,5 @@ function lieuDe(presence, date, moment) {
 module.exports = {
   planifier, prendre, classer, TYPES, creneauxAVenir, estPasse, maintenantParis,
   lundi, ajouterJours, aujourdhui, budgetSemaine, lieuDe, cleCreneau,
-  raisonsExclusion, difficulteDe, EXCLUSIONS_DEFAUT,
+  raisonsExclusion, difficulteDe, difficulteLisible, EXCLUSIONS_DEFAUT,
 };

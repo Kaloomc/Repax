@@ -23,6 +23,7 @@ const SCHEMAS = {
       ingredients: ['Ingrédients', 'rich_text'], temps: ['Temps (min)', 'number'], cout: ['Coût estimé', 'number'],
       coutPortion: ['Coût par portion', 'number'], dateRecup: ['Date de récupération', 'date'],
       type: ['Type de repas', 'select'], difficulte: ['Difficulté', 'select'], etapes: ['Étapes', 'rich_text'],
+      favori: ['Favori', 'checkbox'], image: ['Image', 'url'],
     },
   },
   planning: {

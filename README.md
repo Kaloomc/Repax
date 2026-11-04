@@ -28,11 +28,19 @@ Puis ouvrir http://localhost:3011. Tests : `npm test`.
 
 | Onglet | Ce qu'on y fait |
 |---|---|
-| 🗓️ Semaine | « Proposer les repas » remplit les 7 prochains jours (à partir du prochain repas) et la liste de courses. Sur chaque repas : 📌 le garder quand on repropose, 🔁 changer ce repas seulement, 🍽️ mangé ailleurs (rien à cuisiner, la liste est refaite). Toucher le nom d'un repas ouvre sa **fiche** : ingrédients pour tes portions et étapes |
-| 🛒 Courses | La liste par rayon en paquets entiers, à cocher au magasin (l'article coché part au placard) ; le placard, modifiable |
-| 📖 Recettes | Chercher et ajouter des recettes Marmiton (ou coller un lien), coût par portion, type de repas (🥪 midi simple / 🍲 plat du soir / les deux) modifiable, étapes, 🚫 raison si elle n'est jamais proposée. En haut : **À vérifier**, les ingrédients non reconnus à rattacher à un produit |
-| 🏷️ Prix | Les prix au kilo, d'où ils viennent, bouton « Actualiser depuis Open Prices », correction à la main |
-| 💶 Budget | Dépenses réelles, ce qui reste sur la période, prévu (repas de la période) / payé, réglages (budget, personnes, midi/soir, restes, je n'aime pas, pas de four) |
+| Semaine | Jauge « reste sur le budget » (verte, orange au-delà de 80 %, rouge si dépassé), puis les repas jour par jour (« Aujourd'hui », « Demain »…, total du jour). Les repas d'aujourd'hui restent affichés toute la journée. Toucher un repas ouvre sa **fiche** ; le bouton « ⋯ » donne les actions avec leur libellé : épingler, remplacer, mangé ailleurs. « Proposer d'autres repas » et « Remplacer » peuvent être **annulés** (toast) |
+| Courses | « Reste à acheter », « Déjà pris », articles cochés ; liste par rayon (ordre du Super U) ou par jour ; grande case ronde, les articles cochés descendent dans « Dans le panier ». Mode magasin (gros texte, écran allumé), partage de la liste, article libre, placard repliable |
+| Recettes | Recherche Marmiton (ou lien collé → « Importer cette recette »), filtres Faisable chez moi / Rapide / Végé / Pas cher / Avec mon stock / Favoris, ⭐ favoris, « À vérifier » ; les recettes impossibles (four, je n'aime pas) sont repliées dans « Non réalisables » |
+| Prix | Liste cherchable, source et date de chaque prix, « ≈ » pour une estimation, alerte « Ancien » après 60 jours, mon prix dans une feuille |
+| Budget | Reste / payé sur la période, 8 dernières semaines (prévu, payé, budget), projection de fin de mois, dépenses, réglages |
+
+La **fiche recette** (feuille qui monte du bas) montre la photo, la durée, la difficulté, le coût par portion, les ingrédients avec **tes** quantités et les étapes, avec « Mode cuisine » (une étape par écran, texte grand, écran allumé) et « Ajouter au planning » (le repas choisi est remplacé et épinglé).
+
+Le bouton en haut à droite règle le **thème** (auto / clair / sombre) ; la puce « Démo » ou « Notion » explique d'où viennent les données.
+
+## Interface
+
+HTML, CSS et JS simples (aucune compilation). Le design repose sur des variables CSS dans `public/style.css` (couleurs, espacements sur une grille de 8 px, arrondis, ombres, durées, échelle de texte 12/14/16/20/28) avec un thème clair et un thème sombre ; icônes [Lucide](https://lucide.dev) (licence ISC) dans `public/index.html`. Zones tactiles d'au moins 44 px, zones sûres de l'iPhone, `prefers-reduced-motion` respecté. Captures avant / après : `docs/captures/`.
 
 ## D'où viennent les prix
 
@@ -117,7 +125,7 @@ Au premier lancement avec Notion, l'appli **crée elle-même les 6 bases** (et a
 | Base | Colonnes |
 |---|---|
 | Produits & prix | Nom · Catégorie · Prix · Unité · Source du prix · Date du prix · Synonymes |
-| Recettes | Nom · Lien Marmiton · Portions · Ingrédients · Temps (min) · Coût estimé · Coût par portion · Date de récupération · Type de repas · Difficulté · Étapes |
+| Recettes | Nom · Lien Marmiton · Portions · Ingrédients · Temps (min) · Coût estimé · Coût par portion · Date de récupération · Type de repas · Difficulté · Étapes · Favori · Image |
 | Planning des repas | Repas · Date · Moment · Recette (→ Recettes) · Coût estimé · Portions cuisinées · Restes · Consommé · Gardé · Mangé ailleurs |
 | Liste de courses | Article · Paquets · Quantité · Besoin · Unité · Produit (→ Produits) · Coût estimé · Acheté · Pour le · Source du prix |
 | Garde-manger | Produit · Quantité · Unité · Acheté le · À finir avant · Origine |

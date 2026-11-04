@@ -4,115 +4,181 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Repas</title>
-  <meta name="theme-color" content="#2e7d32">
+  <meta name="theme-color" content="#f4f6f4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1411" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Repas">
   <link rel="stylesheet" href="style.css">
+  <script>
+    // Thème choisi à la main (avant l'affichage, pour éviter un flash).
+    try {
+      const t = localStorage.getItem('theme');
+      if (t === 'clair' || t === 'sombre') document.documentElement.dataset.theme = t;
+    } catch {}
+  </script>
 </head>
 <body>
-  <header>
-    <h1>Repas</h1>
-    <span id="mode" class="badge" hidden>Mode démo</span>
+  <!-- Icônes Lucide (https://lucide.dev, licence ISC) -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+    <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></symbol>
+    <symbol id="i-tag" viewBox="0 0 24 24"><path d="M12.59 2.59A2 2 0 0 0 11.17 2H4a2 2 0 0 0-2 2v7.17a2 2 0 0 0 .59 1.42l8.7 8.7a2.43 2.43 0 0 0 3.42 0l6.58-6.58a2.43 2.43 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5"/></symbol>
+    <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5"/></symbol>
+    <symbol id="i-utensils" viewBox="0 0 24 24"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/></symbol>
+    <symbol id="i-chef" viewBox="0 0 24 24"><path d="M17 21a1 1 0 0 0 1-1v-5.35c0-.46.32-.84.73-1.04a4 4 0 0 0-2.14-7.59 5 5 0 0 0-9.18 0 4 4 0 0 0-2.14 7.59c.41.2.73.58.73 1.04V20a1 1 0 0 0 1 1ZM6 17h12"/></symbol>
+    <symbol id="i-store" viewBox="0 0 24 24"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4M2 7h20M22 7v3a2 2 0 0 1-2 2 2.7 2.7 0 0 1-2-1 2.7 2.7 0 0 1-2 1 2.7 2.7 0 0 1-2-1 2.7 2.7 0 0 1-2 1 2.7 2.7 0 0 1-2-1 2.7 2.7 0 0 1-2 1 2.7 2.7 0 0 1-2-1 2.7 2.7 0 0 1-2 1 2 2 0 0 1-2-2V7"/></symbol>
+    <symbol id="i-package" viewBox="0 0 24 24"><path d="m7.5 4.27 9 5.15M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16ZM3.3 7l8.7 5 8.7-5M12 22V12"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol>
+    <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="m12 3-1.91 5.81a2 2 0 0 1-1.28 1.28L3 12l5.81 1.91a2 2 0 0 1 1.28 1.28L12 21l1.91-5.81a2 2 0 0 1 1.28-1.28L21 12l-5.81-1.91a2 2 0 0 1-1.28-1.28z"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-calendar-plus" viewBox="0 0 24 24"><path d="M8 2v4M16 2v4M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8M3 10h18M16 19h6M19 16v6"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+  </svg>
+
+  <header id="entete">
+    <div class="titres">
+      <h1 id="titre">Repas</h1>
+      <p id="sous-titre"></p>
+    </div>
+    <button id="etat" class="puce discrete" hidden></button>
+    <button id="bouton-reglages" class="icone-seule" aria-label="Affichage et connexion"><svg class="i"><use href="#i-sliders"/></svg></button>
   </header>
 
   <main>
     <section id="connexion">
-      <h2>Connexion</h2>
-      <form id="form-connexion" class="carte">
+      <form id="form-connexion" class="carte pile">
         <label>Mot de passe
           <input name="motDePasse" type="password" autocomplete="current-password" required>
         </label>
-        <button type="submit">Entrer</button>
+        <button type="submit" class="bouton principal">Entrer</button>
         <p class="message" role="status"></p>
       </form>
     </section>
 
     <section id="semaine">
-      <h2>Mes 7 prochains jours</h2>
-      <div id="resume-semaine" class="carte"></div>
-      <button id="proposer" class="large">✨ Proposer les repas</button>
+      <div id="jauge-semaine" class="carte"></div>
+      <button id="proposer" class="bouton principal large">
+        <span><svg class="i"><use href="#i-sparkles"/></svg> <span id="proposer-texte">Proposer d'autres repas</span></span>
+        <small>Remplace les repas non épinglés</small>
+      </button>
       <p class="message" id="message-semaine" role="status"></p>
       <div id="jours"></div>
     </section>
 
     <section id="courses">
-      <h2>Liste de courses</h2>
-      <div id="resume-courses" class="carte"></div>
-      <div id="liste-courses"></div>
-
-      <h3>🥫 Mon placard</h3>
-      <p class="aide">Ce que tu as déjà. Les articles cochés y entrent tout seuls, les repas passés en retirent ce qu'ils utilisent. L'appli s'en sert d'abord, en commençant par ce qui va périmer. Touche une quantité pour la corriger.</p>
-      <ul id="liste-stock" class="liste"></ul>
-      <form id="form-stock" class="carte">
-        <div class="deux">
-          <label>J'ai déjà
-            <select name="nom"></select>
-          </label>
-          <label>Quantité <span id="unite-stock"></span>
-            <input name="quantite" type="number" min="0.01" max="999" step="any" inputmode="decimal" required>
-          </label>
+      <div id="synthese-courses" class="carte"></div>
+      <div class="barre-outils">
+        <div class="segments" role="group" aria-label="Classer la liste">
+          <button type="button" data-tri="rayon">Par rayon</button>
+          <button type="button" data-tri="jour">Par jour</button>
         </div>
-        <button type="submit">Ajouter au placard</button>
-        <p class="message" role="status"></p>
+        <button type="button" class="icone-seule" id="aide-courses" aria-label="Comment lire la liste"><svg class="i"><use href="#i-info"/></svg></button>
+        <button type="button" class="icone-seule" id="mode-magasin" aria-label="Mode magasin" aria-pressed="false"><svg class="i"><use href="#i-store"/></svg></button>
+        <button type="button" class="icone-seule" id="partager" aria-label="Partager la liste"><svg class="i"><use href="#i-share"/></svg></button>
+      </div>
+      <div id="liste-courses"></div>
+      <form id="form-article" class="ajout">
+        <input name="article" maxlength="80" placeholder="Ajouter un article (papier toilette…)" aria-label="Article à ajouter" required>
+        <button type="submit" class="icone-seule principal" aria-label="Ajouter"><svg class="i"><use href="#i-plus"/></svg></button>
       </form>
+      <details id="placard" class="repliable">
+        <summary><svg class="i"><use href="#i-package"/></svg> <span>Dans mon placard</span> <b id="nb-placard"></b><svg class="i chevron"><use href="#i-chevron"/></svg></summary>
+        <p class="aide">Ce que tu as déjà. Les articles cochés y entrent tout seuls, les repas passés en retirent ce qu'ils utilisent. L'appli s'en sert d'abord, en commençant par ce qui va périmer.</p>
+        <ul id="liste-stock" class="liste"></ul>
+        <form id="form-stock" class="carte pile">
+          <div class="deux">
+            <label>J'ai déjà
+              <select name="nom"></select>
+            </label>
+            <label>Quantité <span id="unite-stock"></span>
+              <input name="quantite" type="number" min="0.01" max="999" step="any" inputmode="decimal" required>
+            </label>
+          </div>
+          <button type="submit" class="bouton secondaire">Ajouter au placard</button>
+          <p class="message" role="status"></p>
+        </form>
+      </details>
     </section>
 
     <section id="recettes">
-      <h2>Recettes</h2>
-      <form id="form-marmiton" class="carte">
-        <label>Chercher sur Marmiton
-          <span class="avec-bouton">
-            <input name="q" type="search" placeholder="poulet, lentilles, gratin…" minlength="2" maxlength="60" required>
-            <button type="submit">Chercher</button>
-          </span>
-        </label>
-        <p class="aide">Tu peux aussi coller le lien d'une recette Marmiton.</p>
-        <p class="message" role="status"></p>
-        <ul id="resultats" class="liste"></ul>
+      <form id="recherche" class="recherche" role="search">
+        <svg class="i"><use href="#i-search"/></svg>
+        <input name="q" type="search" enterkeyhint="search" maxlength="300" placeholder="Chercher sur Marmiton ou coller un lien" aria-label="Chercher une recette sur Marmiton" required>
+        <button type="button" class="icone-seule" id="effacer" aria-label="Effacer" hidden><svg class="i"><use href="#i-x"/></svg></button>
       </form>
+      <p class="message" id="message-recherche" role="status"></p>
+      <div id="resultats"></div>
+      <div id="filtres" class="filtres" role="group" aria-label="Filtrer les recettes"></div>
       <div id="a-verifier"></div>
-      <h3>Mes recettes</h3>
-      <ul id="mes-recettes" class="liste"></ul>
+      <div id="mes-recettes" class="grille-recettes"></div>
+      <details id="non-realisables" class="repliable" hidden>
+        <summary><svg class="i"><use href="#i-alert"/></svg> <span>Non réalisables chez moi</span> <b></b><svg class="i chevron"><use href="#i-chevron"/></svg></summary>
+        <div class="contenu"></div>
+      </details>
     </section>
 
     <section id="prix">
-      <h2>Prix</h2>
-      <div class="carte">
-        <p class="aide">Prix relevés dans les Super U (U Express, Hyper U) par la communauté <a href="https://prices.openfoodfacts.org" target="_blank" rel="noopener">Open Prices</a>. Sinon : autres magasins, puis estimation. Touche un prix pour le corriger.</p>
-        <button id="actualiser">🔄 Actualiser depuis Open Prices</button>
+      <div class="carte pile">
+        <p class="aide">Prix relevés dans les magasins U par la communauté <a href="https://prices.openfoodfacts.org" target="_blank" rel="noopener">Open Prices</a>, sinon dans d'autres magasins, sinon estimés (≈). Touche un produit pour mettre ton prix.</p>
+        <button id="actualiser" class="bouton secondaire"><svg class="i"><use href="#i-refresh"/></svg> Actualiser depuis Open Prices</button>
         <p class="message" id="etat-prix" role="status"></p>
       </div>
-      <ul id="liste-prix" class="liste"></ul>
+      <form class="recherche" id="recherche-prix" role="search">
+        <svg class="i"><use href="#i-search"/></svg>
+        <input name="q" type="search" placeholder="Chercher un produit" aria-label="Chercher un produit">
+      </form>
+      <div id="liste-prix"></div>
     </section>
 
     <section id="budget">
-      <h2>Budget</h2>
-      <div id="resume-budget" class="carte"></div>
+      <div id="synthese-budget" class="carte"></div>
+      <div id="histo" class="carte"></div>
+      <div id="projection" class="carte"></div>
 
-      <h3>Ajouter une dépense</h3>
-      <form id="form-depense" class="carte">
-        <label>Montant (€)
-          <input name="montant" type="number" min="0.01" max="9999" step="0.01" inputmode="decimal" required>
-        </label>
-        <label>Libellé
-          <input name="libelle" value="Courses" maxlength="100">
-        </label>
+      <h2 class="titre-section">Ajouter une dépense</h2>
+      <form id="form-depense" class="carte pile">
         <div class="deux">
+          <label>Montant (€)
+            <input name="montant" type="number" min="0.01" max="9999" step="0.01" inputmode="decimal" required>
+          </label>
           <label>Date <input name="date" type="date" required></label>
+        </div>
+        <div class="deux">
+          <label>Libellé <input name="libelle" value="Courses" maxlength="100"></label>
           <label>Magasin <input name="magasin" value="Super U" maxlength="100"></label>
         </div>
-        <button type="submit">Enregistrer la dépense</button>
+        <button type="submit" class="bouton principal">Enregistrer la dépense</button>
         <p class="message" role="status"></p>
       </form>
       <ul id="liste-depenses" class="liste"></ul>
 
-      <h3>Réglages</h3>
-      <form id="form-reglages" class="carte">
+      <h2 class="titre-section">Réglages</h2>
+      <form id="form-reglages" class="carte pile">
         <div class="deux">
           <label>Budget courses (€)
             <input name="budget" type="number" min="0" max="10000" step="1" inputmode="decimal" required>
@@ -133,28 +199,48 @@
           <label class="case"><input type="checkbox" name="repas" value="soir"> Soir</label>
         </fieldset>
         <label class="case"><input type="checkbox" name="restes"> Cuisiner le soir en double et manger les restes le lendemain midi</label>
-        <label>Je n'aime pas <small>(mots séparés par des virgules ; « fruits de mer » compte crevettes, moules…)</small>
+        <label>Je n'aime pas <small>mots séparés par des virgules ; « fruits de mer » compte crevettes, moules…</small>
           <input name="exclusions" maxlength="300" placeholder="omelette, soupe, fruits de mer">
         </label>
         <label class="case"><input type="checkbox" name="sansFour"> Pas de four (une poêle et une casserole)</label>
-        <button type="submit">Enregistrer les réglages</button>
+        <button type="submit" class="bouton principal">Enregistrer les réglages</button>
         <p class="message" role="status"></p>
       </form>
     </section>
   </main>
 
-  <dialog id="fiche">
-    <form method="dialog"><button class="fermer" aria-label="Fermer">✕</button></form>
-    <div id="fiche-contenu"></div>
+  <nav aria-label="Onglets">
+    <a href="#semaine"><svg class="i"><use href="#i-calendar"/></svg><span>Semaine</span></a>
+    <a href="#courses"><span class="avec-compteur"><svg class="i"><use href="#i-cart"/></svg><b id="compteur-courses" hidden></b></span><span>Courses</span></a>
+    <a href="#recettes"><svg class="i"><use href="#i-book"/></svg><span>Recettes</span></a>
+    <a href="#prix"><svg class="i"><use href="#i-tag"/></svg><span>Prix</span></a>
+    <a href="#budget"><svg class="i"><use href="#i-wallet"/></svg><span>Budget</span></a>
+  </nav>
+
+  <dialog id="feuille" class="feuille" aria-labelledby="feuille-titre">
+    <div class="poignee" aria-hidden="true"></div>
+    <button class="icone-seule fermer" aria-label="Fermer"><svg class="i"><use href="#i-x"/></svg></button>
+    <div id="feuille-contenu"></div>
   </dialog>
 
-  <nav>
-    <a href="#semaine">🗓️<span>Semaine</span></a>
-    <a href="#courses">🛒<span>Courses</span></a>
-    <a href="#recettes">📖<span>Recettes</span></a>
-    <a href="#prix">🏷️<span>Prix</span></a>
-    <a href="#budget">💶<span>Budget</span></a>
-  </nav>
+  <dialog id="cuisine" class="plein-ecran" aria-label="Mode cuisine">
+    <div class="cuisine-tete">
+      <span id="cuisine-titre"></span>
+      <button class="icone-seule fermer" aria-label="Quitter le mode cuisine"><svg class="i"><use href="#i-x"/></svg></button>
+    </div>
+    <p id="cuisine-compteur" class="aide"></p>
+    <p id="cuisine-etape" aria-live="polite"></p>
+    <details class="repliable"><summary><span>Ingrédients</span><svg class="i chevron"><use href="#i-chevron"/></svg></summary><ul id="cuisine-ingredients" class="ingredients"></ul></details>
+    <div class="cuisine-boutons">
+      <button id="cuisine-precedent" class="bouton secondaire large"><svg class="i"><use href="#i-left"/></svg> Précédente</button>
+      <button id="cuisine-suivant" class="bouton principal large">Suivante <svg class="i"><use href="#i-right"/></svg></button>
+    </div>
+  </dialog>
+
+  <div id="toast" role="status" aria-live="polite" hidden>
+    <span id="toast-texte"></span>
+    <button id="toast-annuler" class="lien-fort" hidden>Annuler</button>
+  </div>
 
   <script src="app.js"></script>
 </body>
