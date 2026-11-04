@@ -52,6 +52,38 @@ function classer(nom, nbIngredients, difficulte = '', typeMarmiton = '') {
   return 'Plat du soir';
 }
 
+// --- Ce que je n'aime pas / ce que je n'ai pas -----------------------------------
+const EXCLUSIONS_DEFAUT = 'omelette, soupe, velouté, fruits de mer';
+// Un mot qui désigne toute une famille d'ingrédients.
+const FAMILLES = {
+  'fruits de mer': ['fruits de mer', 'crevette', 'gambas', 'moule', 'calamar', 'encornet', 'saint jacques', 'coquille saint',
+    'crabe', 'homard', 'langouste', 'huitre', 'poulpe', 'seiche', 'bulot', 'palourde', 'coque', 'surimi'],
+  soupe: ['soupe', 'potage'],
+};
+// Plats qui demandent un four (dans le nom ou les étapes).
+const FOUR = /(^| )(four|fours|enfourn\w*|prechauff\w*|thermostat|gratin\w*|tarte|tartes|quiche|lasagnes?|clafoutis|cake|pizza|roti|feuillete)( |$)/;
+
+// Pourquoi une recette n'est pas proposée (liste vide = elle l'est).
+// Les mots exclus sont cherchés dans le nom et les ingrédients (sans les unités : « cuillère à soupe » ne compte pas).
+function raisonsExclusion(recette, lignes, { exclusions = '', sansFour = false } = {}) {
+  const raisons = [];
+  const nom = ' ' + norm(recette.nom) + ' ';
+  const ingredients = lignes.map((l) => ' ' + norm(l.detail || '') + ' ').join('|');
+  for (const mot of exclusions.split(',').map(norm).filter(Boolean)) {
+    if ((FAMILLES[mot] || [mot]).some((m) => nom.includes(' ' + m) || ingredients.includes(' ' + m))) raisons.push(mot);
+  }
+  if (sansFour && FOUR.test(norm(recette.nom + ' ' + (recette.etapes || '')))) raisons.push('four');
+  return raisons;
+}
+
+// Difficulté devinée quand la recette n'en a pas : nombre d'ingrédients (hors épices) et d'étapes.
+function difficulteDe(nbIngredients, etapes = '') {
+  const nbEtapes = String(etapes).split('\n').filter((l) => l.trim()).length;
+  if (nbIngredients <= 4 && nbEtapes <= 4) return 'très facile';
+  if (nbIngredients <= 8 && nbEtapes <= 8) return 'facile';
+  return 'moyenne';
+}
+
 // --- Placard --------------------------------------------------------------------
 // Prend `qte` d'un produit dans les lots, en finissant d'abord ce qui périme le plus tôt.
 // Un lot entamé se garde ensuite moins longtemps (conserve ouverte, crème…). Renvoie ce qui manque
@@ -100,8 +132,16 @@ function planifier({ recettes, produits, stock = [], creneaux, reglages, fixes =
   const repas = [];
   let depense = 0, dernier = null;
 
+  // Une recette exclue (four, je n'aime pas) n'est jamais choisie ; elle sert seulement si un repas 📌 gardé l'utilise.
+  const proposables = recettes.filter((r) => !r.exclue);
+  // Les repas déjà décidés comptent d'avance pour la variété, même s'ils sont plus loin dans la semaine.
+  for (const f of fixes.values()) if (f.recette && !f.ailleurs && !f.restes) utilisations.set(f.recette, (utilisations.get(f.recette) || 0) + 1);
+  const recetteFixe = (date, moment) => {
+    const f = fixes.get(cleCreneau(date, moment));
+    return f && !f.ailleurs ? f.recette : null;
+  };
   const coutProrata = (r) => r.besoins.reduce((s, b) => s + (b.inconnu ? b.cout : b.qte * produits.get(b.nom).prix), 0);
-  const moinsCher = Math.min(...recettes.map(coutProrata)) * reglages.personnes;
+  const moinsCher = Math.min(...(proposables.length ? proposables : recettes).map(coutProrata)) * reglages.personnes;
 
   function simuler(r, date, portions) {
     const copie = lots.map((l) => ({ ...l }));
@@ -155,10 +195,12 @@ function planifier({ recettes, produits, stock = [], creneaux, reglages, fixes =
     } else {
       const types = c.moment === 'midi' ? ['Midi simple', 'Les deux'] : ['Plat du soir', 'Les deux'];
       const exclue = exclus.get(cleCreneau(c.date, c.moment)); // 🔁 changer ce repas : pas la même recette
-      let pool = recettes.filter((r) => types.includes(r.type) && r.id !== exclue);
-      if (!pool.length) pool = recettes.filter((r) => r.id !== exclue);
-      if (!pool.length) pool = recettes;
-      const recent = (r) => r.id === dernier || r.id === derniers[c.moment];
+      let pool = proposables.filter((r) => types.includes(r.type) && r.id !== exclue);
+      if (!pool.length) pool = proposables.filter((r) => r.id !== exclue);
+      if (!pool.length) pool = proposables.length ? proposables : recettes;
+      // Pas la même chose qu'au repas d'avant, qu'au même moment la veille, ni qu'aux repas déjà décidés juste après.
+      const voisins = [recetteFixe(suivant?.date, suivant?.moment), recetteFixe(ajouterJours(c.date, 1), c.moment)];
+      const recent = (r) => r.id === dernier || r.id === derniers[c.moment] || voisins.includes(r.id);
       let candidates = pool.filter((r) => (utilisations.get(r.id) || 0) < 2 && !recent(r));
       if (!candidates.length) candidates = pool.filter((r) => !recent(r));
       if (!candidates.length) candidates = pool;
@@ -184,7 +226,7 @@ function planifier({ recettes, produits, stock = [], creneaux, reglages, fixes =
     }
     for (const b of choix.r.besoins) if (!b.inconnu) besoins.set(b.nom, (besoins.get(b.nom) || 0) + b.qte * portions);
     depense += choix.s.cout;
-    utilisations.set(choix.r.id, (utilisations.get(choix.r.id) || 0) + 1);
+    if (!fixe) utilisations.set(choix.r.id, (utilisations.get(choix.r.id) || 0) + 1);
     dernier = derniers[c.moment] = choix.r.id;
     repas.push({ ...c, recette: choix.r.id, restes: false, garde: !!fixe?.garde, double, portions, cout: choix.s.cout });
   });
@@ -214,4 +256,5 @@ function lieuDe(presence, date, moment) {
 module.exports = {
   planifier, prendre, classer, TYPES, creneauxAVenir, estPasse, maintenantParis,
   lundi, ajouterJours, aujourdhui, budgetSemaine, lieuDe, cleCreneau,
+  raisonsExclusion, difficulteDe, EXCLUSIONS_DEFAUT,
 };

@@ -28,11 +28,11 @@ Puis ouvrir http://localhost:3011. Tests : `npm test`.
 
 | Onglet | Ce qu'on y fait |
 |---|---|
-| 🗓️ Semaine | « Proposer les repas » remplit les 7 prochains jours (à partir du prochain repas) et la liste de courses. Sur chaque repas : 📌 le garder quand on repropose, 🔁 changer ce repas seulement, 🍽️ mangé ailleurs (rien à cuisiner, la liste est refaite) |
+| 🗓️ Semaine | « Proposer les repas » remplit les 7 prochains jours (à partir du prochain repas) et la liste de courses. Sur chaque repas : 📌 le garder quand on repropose, 🔁 changer ce repas seulement, 🍽️ mangé ailleurs (rien à cuisiner, la liste est refaite). Toucher le nom d'un repas ouvre sa **fiche** : ingrédients pour tes portions et étapes |
 | 🛒 Courses | La liste par rayon en paquets entiers, à cocher au magasin (l'article coché part au placard) ; le placard, modifiable |
-| 📖 Recettes | Chercher et ajouter des recettes Marmiton (ou coller un lien), coût par portion, type de repas (🥪 midi simple / 🍲 plat du soir / les deux) modifiable |
+| 📖 Recettes | Chercher et ajouter des recettes Marmiton (ou coller un lien), coût par portion, type de repas (🥪 midi simple / 🍲 plat du soir / les deux) modifiable, étapes, 🚫 raison si elle n'est jamais proposée. En haut : **À vérifier**, les ingrédients non reconnus à rattacher à un produit |
 | 🏷️ Prix | Les prix au kilo, d'où ils viennent, bouton « Actualiser depuis Open Prices », correction à la main |
-| 💶 Budget | Dépenses réelles, ce qui reste sur la période, réglages (budget, personnes, midi/soir, restes) |
+| 💶 Budget | Dépenses réelles, ce qui reste sur la période, prévu (repas de la période) / payé, réglages (budget, personnes, midi/soir, restes, je n'aime pas, pas de four) |
 
 ## D'où viennent les prix
 
@@ -61,6 +61,8 @@ Le coût par portion d'une recette est au prorata (pour comparer les recettes). 
 
 Les 7 prochains jours à partir du prochain repas (rien pour un repas déjà passé). Pour chaque repas, dans l'ordre :
 
+- **ce que je n'aime pas / ce que je n'ai pas** : une recette dont le nom ou les ingrédients contiennent un mot exclu (réglage « Je n'aime pas », par défaut omelette, soupe, velouté, fruits de mer — qui compte crevettes, moules, calamars…) ou qui demande un four (« Pas de four » : four, préchauffer, enfourner, gratin, tarte, quiche…) n'est **jamais proposée**. Un repas déjà prévu avec une telle recette est remplacé, sauf s'il est 📌 gardé ;
+
 - **midi simple, soir cuisiné** : le midi, seulement des recettes « Midi simple » (ou « Les deux ») ; le soir, des « Plat du soir ». Le type est deviné à l'import (mots du nom comme salade, sandwich, wrap, croque ; difficulté et genre de plat donnés par Marmiton ; nombre d'ingrédients) et se corrige dans l'onglet Recettes ;
 - **coût réel** : on pioche d'abord dans le placard, sinon on achète des paquets entiers ; le surplus va au placard pour les repas suivants ;
 - **anti-gaspillage** : bonus aux recettes qui finissent ce qui est au placard, doublé pour ce qui va périmer dans les 2 jours ; l'appli prévient de ce qui risque d'être jeté ;
@@ -68,6 +70,21 @@ Les 7 prochains jours à partir du prochain repas (rien pour un repas déjà pas
 - **variété** : une recette au plus 2 fois en 7 jours, jamais deux repas de suite, ni deux soirs (ou deux midis) de suite ;
 - **restes** (option) : le plat du soir est cuisiné en double et mangé le lendemain midi ;
 - un peu de **hasard**, pour que « Proposer d'autres repas » donne autre chose.
+
+## Mode automatique
+
+Repax remplace la tâche planifiée « Planning repas quotidien ». **Toutes les 10 minutes, et 2 secondes après chaque action dans l'appli**, il :
+
+1. range le Garde-manger (noms et unités du catalogue : « Spaghetti 0,5 kg » devient « Pâtes ») et y met les articles cochés « Acheté » directement dans Notion ;
+2. retire du placard ce qu'ont utilisé les repas passés (case Consommé) ;
+3. **complète** le planning jusqu'aux 7 prochains jours **sans toucher aux repas existants** (ceux ajoutés à la main dans Notion compris), en ignorant les absences (Présence) et les repas « mangé ailleurs », puis refait la liste de courses ;
+4. remplit les colonnes vides des recettes (Type de repas, Difficulté, Coût estimé, Coût par portion), 20 par passage.
+
+Ne sont jamais touchés : une ligne du planning **sans recette** (« resto avec Paul », ajoutée à la main) et une ligne de courses **sans « Source du prix »** (ajoutée à la main). Un article coché reste dans la liste le jour même et le lendemain, puis la quitte (il est au placard).
+
+« Coût estimé » d'un repas = le prix des ingrédients mangés, au prorata ; la liste de courses, elle, compte les paquets entiers.
+
+Les modifications faites directement dans Notion sont vues au plus tard 10 minutes après (cache).
 
 ## Liens avec Agendix et Argenx
 
@@ -99,12 +116,12 @@ Au premier lancement avec Notion, l'appli **crée elle-même les 6 bases** (et a
 
 | Base | Colonnes |
 |---|---|
-| Produits & prix | Nom · Catégorie · Prix · Unité · Source du prix · Date du prix |
-| Recettes | Nom · Lien Marmiton · Portions · Ingrédients · Temps (min) · Coût estimé · Coût par portion · Date de récupération · Type de repas · Difficulté |
-| Planning des repas | Repas · Date · Moment · Recette (→ Recettes) · Coût estimé · Portions cuisinées · Restes · Consommé |
+| Produits & prix | Nom · Catégorie · Prix · Unité · Source du prix · Date du prix · Synonymes |
+| Recettes | Nom · Lien Marmiton · Portions · Ingrédients · Temps (min) · Coût estimé · Coût par portion · Date de récupération · Type de repas · Difficulté · Étapes |
+| Planning des repas | Repas · Date · Moment · Recette (→ Recettes) · Coût estimé · Portions cuisinées · Restes · Consommé · Gardé · Mangé ailleurs |
 | Liste de courses | Article · Paquets · Quantité · Besoin · Unité · Produit (→ Produits) · Coût estimé · Acheté · Pour le · Source du prix |
 | Garde-manger | Produit · Quantité · Unité · Acheté le · À finir avant · Origine |
-| Budget & dépenses | Libellé · Type (Budget / Dépense) · Montant · Date · Période · Magasin · Personnes · Repas · Restes le midi |
+| Budget & dépenses | Libellé · Type (Budget / Dépense) · Montant · Date · Période · Magasin · Personnes · Repas · Restes le midi · Je n'aime pas · Pas de four |
 
 Les bases « Présence » (Agendix) et « Courses payées » (Argenx) sont lues, jamais créées ni modifiées par Repax.
 

@@ -4,10 +4,11 @@ const crypto = require('crypto');
 const store = require('./store');
 const marmiton = require('./marmiton');
 const prix = require('./prix');
-const { CATALOGUE, PRODUITS, SOURCES, tarifs, analyserRecette } = require('./ingredients');
+const { CATALOGUE, PRODUITS, SOURCES, tarifs, analyserRecette, definirSynonymes, lireLigne, norm } = require('./ingredients');
 const {
   planifier, prendre, classer, TYPES, creneauxAVenir, estPasse, maintenantParis,
   lundi, ajouterJours, aujourdhui, budgetSemaine, lieuDe, cleCreneau,
+  raisonsExclusion, difficulteDe, EXCLUSIONS_DEFAUT,
 } = require('./planning');
 
 const app = express();
@@ -40,7 +41,10 @@ app.use('/api', (req, res, next) => {
 });
 
 // --- Outils -----------------------------------------------------------------
-const REGLAGES_DEFAUT = { budget: 60, periode: 'semaine', personnes: 1, repas: ['midi', 'soir'], restes: false };
+const REGLAGES_DEFAUT = {
+  budget: 60, periode: 'semaine', personnes: 1, repas: ['midi', 'soir'], restes: false,
+  exclusions: EXCLUSIONS_DEFAUT, sansFour: true, // seul avec une poêle et une casserole
+};
 const rayonDe = (nom) => PRODUITS.get(nom)?.rayon || 'Autres';
 const arrondi = (x) => Math.round(x * 100) / 100;
 const arrondi3 = (x) => Math.round(x * 1000) / 1000;
@@ -64,11 +68,13 @@ async function reglages() {
   return {
     id: r.id, budget: r.montant ?? 60, periode: r.periode || 'semaine', personnes: r.personnes || 1,
     repas: r.repas?.length ? r.repas : ['midi', 'soir'], restes: !!r.restes,
+    exclusions: r.exclusions || '', sansFour: !!r.sansFour,
   };
 }
 
 async function contexte() {
   const [recettes, produits] = await Promise.all([store.list('recettes'), store.list('produits')]);
+  definirSynonymes(produits);
   const t = tarifs(produits);
   const analyses = new Map(recettes.map((r) => [r.id, { portions: r.portions || 4, ...analyserRecette(r, t) }]));
   return { recettes, produits, t, analyses };
@@ -76,6 +82,10 @@ async function contexte() {
 
 const nbIngredients = (a) => a.lignes.filter((l) => !l.placard).length;
 const typeDe = (r, a) => r.type || classer(r.nom, nbIngredients(a), r.difficulte || '');
+// Recettes jamais proposées (four, plats que je n'aime pas) : id → raisons.
+const exclusionsDe = (recettes, analyses, regl) => new Map(recettes
+  .map((r) => [r.id, raisonsExclusion(r, analyses.get(r.id).lignes, regl)])
+  .filter(([, raisons]) => raisons.length));
 
 // --- Liens avec les autres applis : tout passe par la page Notion commune ---------------
 // Où suis-je, repas par repas ? Lu dans la base « Présence » d'Agendix.
@@ -128,37 +138,55 @@ async function consommerPasses() {
 
 // --- État et réglages --------------------------------------------------------
 app.get('/api/etat', (req, res) => {
-  res.json({ mode: store.mode, motDePasse: !!MOT_DE_PASSE });
+  res.json({ mode: store.mode, motDePasse: !!MOT_DE_PASSE, auto: etatAuto });
 });
 
 app.put('/api/reglages', async (req, res) => {
-  const { budget, periode, personnes, repas, restes = false } = req.body ?? {};
+  const { budget, periode, personnes, repas, restes = false, exclusions = '', sansFour = false } = req.body ?? {};
   verifier(
     Number.isFinite(budget) && budget >= 0 && budget <= 10000 &&
     ['semaine', 'mois'].includes(periode) &&
     Number.isInteger(personnes) && personnes >= 1 && personnes <= 20 &&
     Array.isArray(repas) && repas.length > 0 && repas.every((r) => ['midi', 'soir'].includes(r)) &&
-    typeof restes === 'boolean',
+    typeof restes === 'boolean' && typeof sansFour === 'boolean' &&
+    typeof exclusions === 'string' && exclusions.length <= 300,
     'Réglages invalides'
   );
-  const ligne = { libelle: 'Réglages', type: 'Budget', montant: budget, periode, personnes, repas: [...new Set(repas)], restes, date: aujourdhui() };
+  const ligne = {
+    libelle: 'Réglages', type: 'Budget', montant: budget, periode, personnes, repas: [...new Set(repas)], restes,
+    exclusions: exclusions.trim(), sansFour, date: aujourdhui(),
+  };
   const actuel = await reglages();
   if (actuel.id) await store.update('depenses', actuel.id, ligne);
   else await store.add('depenses', ligne);
+  declencher();
   res.json(await reglages());
 });
 
 // --- Recettes ----------------------------------------------------------------
-const resumeRecette = (r, a) => ({
-  id: r.id, nom: r.nom, url: r.url, portions: a.portions, temps: r.temps, difficulte: r.difficulte || null,
-  type: typeDe(r, a), nbIngredients: nbIngredients(a),
+const resumeRecette = (r, a, raisons = []) => ({
+  id: r.id, nom: r.nom, url: r.url, portions: a.portions, temps: r.temps,
+  difficulte: r.difficulte || difficulteDe(nbIngredients(a), r.etapes), etapes: r.etapes || '',
+  type: typeDe(r, a), nbIngredients: nbIngredients(a), exclue: raisons,
   cout: arrondi(a.cout), coutPortion: arrondi(a.coutPortion), estime: a.estime,
-  lignes: a.lignes.map((l) => ({ brut: l.brut, nom: l.nom, cout: arrondi(l.cout), source: l.source, inconnu: !!l.inconnu, placard: !!l.placard })),
+  lignes: a.lignes.map((l) => ({
+    brut: l.brut, nom: l.nom, qte: l.qte, unite: l.unite, cout: arrondi(l.cout), source: l.source,
+    inconnu: !!l.inconnu, placard: !!l.placard,
+  })),
 });
 
 app.get('/api/recettes', async (req, res) => {
+  const [{ recettes, analyses }, regl] = await Promise.all([contexte(), reglages()]);
+  const exclues = exclusionsDe(recettes, analyses, regl);
+  res.json(recettes.map((r) => resumeRecette(r, analyses.get(r.id), exclues.get(r.id))).sort((a, b) => a.nom.localeCompare(b.nom, 'fr')));
+});
+
+// Fiche d'une recette (ingrédients et étapes), ouverte depuis un repas du planning.
+app.get('/api/recettes/:id', async (req, res) => {
   const { recettes, analyses } = await contexte();
-  res.json(recettes.map((r) => resumeRecette(r, analyses.get(r.id))).sort((a, b) => a.nom.localeCompare(b.nom, 'fr')));
+  const r = recettes.find((x) => x.id === req.params.id);
+  verifier(r, 'Recette introuvable (supprimée ?)');
+  res.json(resumeRecette(r, analyses.get(r.id)));
 });
 
 app.get('/api/marmiton', async (req, res) => {
@@ -180,6 +208,7 @@ app.post('/api/recettes', async (req, res) => {
   const a = analyserRecette(r, t);
   const type = classer(r.nom, nbIngredients(a), r.difficulte || '', r.typeMarmiton || '');
   const ligne = await store.add('recettes', { ...r, type, cout: arrondi(a.cout), coutPortion: arrondi(a.coutPortion), dateRecup: aujourdhui() });
+  declencher();
   res.json({ id: ligne.id, nom: ligne.nom, type });
 });
 
@@ -187,12 +216,14 @@ app.patch('/api/recettes/:id', async (req, res) => {
   verifier(TYPES.includes(req.body?.type), 'Type de repas inconnu');
   await trouver('recettes', req.params.id);
   await store.update('recettes', req.params.id, { type: req.body.type });
+  declencher();
   res.json({ ok: true });
 });
 
 app.delete('/api/recettes/:id', async (req, res) => {
   await trouver('recettes', req.params.id);
   await store.remove('recettes', req.params.id);
+  declencher();
   res.json({ ok: true });
 });
 
@@ -251,6 +282,7 @@ async function vue() {
     fin: creneaux[creneaux.length - 1].date,
     absences: creneaux.map((c) => ({ ...c, lieu: lieu(c) })).filter((c) => c.lieu !== 'Angoulême'),
     agendix: erreur,
+    auto: etatAuto,
     budget: arrondi(budgetSemaine(regl)),
     restes: regl.restes,
     total: arrondi(liste.reduce((s, c) => s + (c.cout || 0), 0)),
@@ -287,91 +319,176 @@ async function remplacerLignes(col, anciennes, lignes, cle) {
 }
 
 // Propose les repas des 7 prochains jours. Les repas 📌 gardés et « mangé ailleurs » ne bougent pas.
-// { changer: id } : ne change que ce repas-là, tous les autres restent.
-// { recalculer: true } : aucun repas ne change, seule la liste de courses est refaite (après « mangé ailleurs »).
+// { changer: id }      : ne change que ce repas-là, tous les autres restent.
+// { completer: true }  : aucun repas existant ne change ; les créneaux vides sont remplis et la liste de courses
+//                        est refaite (mode automatique, et après « mangé ailleurs »).
+// Dans tous les cas : un repas dont la recette a été supprimée, ou est exclue (four, je n'aime pas) sans être
+// 📌 gardé, est remplacé. Une ligne du planning sans recette (ajoutée à la main dans Notion : « resto avec Paul »)
+// et une ligne de courses ajoutée à la main (sans « Source du prix ») ne sont jamais touchées.
+const manuelle = (c) => !c.source && c.unite !== 'placard';
+
+async function proposer({ changer, completer = false } = {}) {
+  const m = maintenantParis();
+  const [{ recettes, t, analyses }, regl, planning, courses, stock] = await Promise.all([
+    contexte(), reglages(), store.list('planning'), store.list('courses'), store.list('stock'),
+  ]);
+  verifier(recettes.length > 0, "Ajoute d'abord quelques recettes.");
+  const exclues = exclusionsDe(recettes, analyses, regl);
+  const { lieu } = await presence();
+  const cle = (p) => cleCreneau(p.date, p.moment);
+  const aVenir = planning.filter((p) => p.date && p.moment && !p.consomme && !estPasse(p.date, p.moment, m));
+  const aLaMain = new Set(aVenir.filter((p) => !p.recette && !p.ailleurs).map(cle));
+  const geres = aVenir.filter((p) => !aLaMain.has(cle(p)));
+  // Seulement les repas où je suis à Angoulême (d'après Agendix), hors repas notés à la main.
+  const creneaux = creneauxAVenir(regl.repas, m).filter((c) => lieu(c) === 'Angoulême' && !aLaMain.has(cle(c)));
+  const produits = new Map(CATALOGUE.filter((e) => !e.placard).map((e) => [e.nom, { ...e, prix: t.get(e.nom).prix }]));
+
+  const parCreneau = new Map(geres.map((p) => [cle(p), p]));
+  const cible = changer && geres.find((p) => p.id === changer);
+  verifier(!changer || cible, 'Repas introuvable');
+  const fixes = new Map(), exclus = new Map();
+  if (cible) exclus.set(cle(cible), cible.recette);
+  // Dans l'ordre : un repas de restes n'est gardé que si le soir d'avant l'est aussi.
+  let precedentFixe = false;
+  for (const c of creneaux) {
+    const p = parCreneau.get(cle(c));
+    const valable = p && (p.ailleurs || (analyses.has(p.recette) && (p.garde || !exclues.has(p.recette))));
+    const garder = valable && p !== cible && (cible || completer || p.garde || p.ailleurs) && (!p.restes || precedentFixe);
+    if (garder) fixes.set(cle(c), p);
+    precedentFixe = !!garder && !p.ailleurs; // soir mangé ailleurs : pas de restes le lendemain
+  }
+
+  const plan = planifier({
+    recettes: recettes.map((r) => {
+      const a = analyses.get(r.id);
+      return {
+        id: r.id,
+        type: typeDe(r, a),
+        exclue: exclues.has(r.id),
+        besoins: a.lignes.filter((l) => !l.placard).map((l) =>
+          l.inconnu ? { nom: l.nom, inconnu: true, cout: l.cout / a.portions } : { nom: l.nom, qte: l.qte / a.portions }
+        ),
+      };
+    }),
+    produits,
+    stock: stock.filter((s) => s.quantite > 0 && PRODUITS.has(s.nom)).map((s) => ({ nom: s.nom, quantite: s.quantite, peremption: s.peremption })),
+    creneaux,
+    reglages: regl,
+    fixes,
+    exclus,
+  });
+
+  // Épices et condiments utilisés : rappel « à avoir au placard », sans prix.
+  const epices = new Set();
+  for (const r of plan.repas) {
+    if (!r.restes && !r.ailleurs && r.recette) for (const l of analyses.get(r.recette).lignes) if (l.placard && l.detail) epices.add(l.detail);
+  }
+
+  // Repas à venir et liste : les lignes existantes sont réutilisées (moins d'écritures dans Notion).
+  // « Coût estimé » d'un repas = ce que coûtent les ingrédients mangés (au prorata), pas le paquet acheté pour l'occasion.
+  const noms = new Map(recettes.map((r) => [r.id, r.nom]));
+  const nouveauxRepas = plan.repas.map((r) => complet('planning', {
+    repas: fixes.get(cle(r))?.repas || noms.get(r.recette), date: r.date, moment: r.moment, recette: r.recette,
+    cout: r.restes || r.ailleurs || !r.recette ? 0 : arrondi(analyses.get(r.recette).coutPortion * r.portions),
+    portions: r.portions, restes: !!r.restes, consomme: false, garde: !!r.garde, ailleurs: !!r.ailleurs,
+  }));
+  const nouvellesCourses = [
+    ...plan.achats.map((a) => complet('courses', a.inconnu
+      ? { article: a.nom, cout: arrondi(a.cout), unite: 'fois', achete: false, pour: a.pour, source: SOURCES.estimation }
+      : {
+          article: a.nom, paquets: a.paquets, quantite: arrondi3(a.quantite), besoin: arrondi3(a.besoin),
+          unite: produits.get(a.nom).unite, cout: arrondi(a.cout), achete: false, pour: a.pour,
+          source: t.get(a.nom).source, produit: t.get(a.nom).id,
+        })),
+    ...[...epices].map((e) => complet('courses', { article: e[0].toUpperCase() + e.slice(1), unite: 'placard', cout: 0, achete: false })),
+  ];
+  // Un article acheté reste affiché (coché) le jour même et le lendemain, puis quitte la liste : il est au placard.
+  const hier = ajouterJours(m.date, -1);
+  const anciens = courses.filter((c) => c.achete && !manuelle(c) && !stock.some((s) => s.origine === c.id && s.achat >= hier));
+  await Promise.all([
+    remplacerLignes('planning', geres, nouveauxRepas, cle),
+    remplacerLignes('courses', courses.filter((c) => !c.achete && !manuelle(c)), nouvellesCourses, (c) => c.article),
+    ...anciens.map((c) => store.remove('courses', c.id)),
+  ]);
+  return plan.gaspillage.map((g) => ({ nom: g.nom, valeur: arrondi(g.valeur) })).filter((g) => g.valeur >= 0.05);
+}
+
 app.post('/api/semaine', async (req, res) => {
-  const changer = req.body?.changer;
-  const recalculer = req.body?.recalculer === true;
+  const completer = req.body?.completer === true || req.body?.recalculer === true;
   const gaspillage = await enSerie(async () => {
     await consommerPasses();
-    const m = maintenantParis();
-    const [{ recettes, t, analyses }, regl, planning, courses, stock] = await Promise.all([
-      contexte(), reglages(), store.list('planning'), store.list('courses'), store.list('stock'),
-    ]);
-    verifier(recettes.length > 0, "Ajoute d'abord quelques recettes.");
-    // Seulement les repas où je suis à Angoulême (d'après Agendix).
-    const { lieu } = await presence();
-    const creneaux = creneauxAVenir(regl.repas, m).filter((c) => lieu(c) === 'Angoulême');
-    const produits = new Map(CATALOGUE.filter((e) => !e.placard).map((e) => [e.nom, { ...e, prix: t.get(e.nom).prix }]));
-
-    const aVenir = planning.filter((p) => !p.consomme && !estPasse(p.date, p.moment, m));
-    const cle = (p) => cleCreneau(p.date, p.moment);
-    const parCreneau = new Map(aVenir.map((p) => [cle(p), p]));
-    const cible = changer && aVenir.find((p) => p.id === changer);
-    verifier(!changer || cible, 'Repas introuvable');
-    const fixes = new Map(), exclus = new Map();
-    if (cible) exclus.set(cle(cible), cible.recette);
-    // Dans l'ordre : un repas de restes n'est gardé que si le soir d'avant l'est aussi.
-    let precedentFixe = false;
-    for (const c of creneaux) {
-      const p = parCreneau.get(cle(c));
-      const garder = p && p !== cible && analyses.has(p.recette) && (cible || recalculer || p.garde || p.ailleurs) && (!p.restes || precedentFixe);
-      if (garder) fixes.set(cle(c), p);
-      precedentFixe = !!garder && !p.ailleurs; // soir mangé ailleurs : pas de restes le lendemain
-    }
-
-    const plan = planifier({
-      recettes: recettes.map((r) => {
-        const a = analyses.get(r.id);
-        return {
-          id: r.id,
-          type: typeDe(r, a),
-          besoins: a.lignes.filter((l) => !l.placard).map((l) =>
-            l.inconnu ? { nom: l.nom, inconnu: true, cout: l.cout / a.portions } : { nom: l.nom, qte: l.qte / a.portions }
-          ),
-        };
-      }),
-      produits,
-      stock: stock.filter((s) => s.quantite > 0 && PRODUITS.has(s.nom)).map((s) => ({ nom: s.nom, quantite: s.quantite, peremption: s.peremption })),
-      creneaux,
-      reglages: regl,
-      fixes,
-      exclus,
-    });
-
-    // Épices et condiments utilisés : rappel « à avoir au placard », sans prix.
-    const epices = new Set();
-    for (const r of plan.repas) {
-      if (!r.restes && !r.ailleurs) for (const l of analyses.get(r.recette).lignes) if (l.placard && l.detail) epices.add(l.detail);
-    }
-
-    // Repas à venir et liste : les lignes existantes sont réutilisées (moins d'écritures dans Notion).
-    // Les articles achetés quittent la liste : ils sont déjà au placard, le planning en a tenu compte.
-    const noms = new Map(recettes.map((r) => [r.id, r.nom]));
-    const nouveauxRepas = plan.repas.map((r) => complet('planning', {
-      repas: noms.get(r.recette), date: r.date, moment: r.moment, recette: r.recette, cout: arrondi(r.cout),
-      portions: r.portions, restes: !!r.restes, consomme: false, garde: !!r.garde, ailleurs: !!r.ailleurs,
-    }));
-    const nouvellesCourses = [
-      ...plan.achats.map((a) => complet('courses', a.inconnu
-        ? { article: a.nom, cout: arrondi(a.cout), unite: 'fois', achete: false, pour: a.pour, source: SOURCES.estimation }
-        : {
-            article: a.nom, paquets: a.paquets, quantite: arrondi3(a.quantite), besoin: arrondi3(a.besoin),
-            unite: produits.get(a.nom).unite, cout: arrondi(a.cout), achete: false, pour: a.pour,
-            source: t.get(a.nom).source, produit: t.get(a.nom).id,
-          })),
-      ...[...epices].map((e) => complet('courses', { article: e[0].toUpperCase() + e.slice(1), unite: 'placard', cout: 0, achete: false })),
-    ];
-    await Promise.all([
-      remplacerLignes('planning', aVenir, nouveauxRepas, cle),
-      // Seules les lignes pas encore achetées sont réutilisées : une ligne achetée est liée à son lot du placard.
-      remplacerLignes('courses', courses.filter((c) => !c.achete), nouvellesCourses, (c) => c.article),
-      ...courses.filter((c) => c.achete).map((c) => store.remove('courses', c.id)),
-    ]);
-    return plan.gaspillage.map((g) => ({ nom: g.nom, valeur: arrondi(g.valeur) })).filter((g) => g.valeur >= 0.05);
+    return proposer({ changer: req.body?.changer, completer });
   });
   res.json({ ...(await vue()), gaspillage });
 });
+
+// --- Mode automatique (remplace la tâche planifiée « Planning repas quotidien ») -------------
+// Toutes les 10 minutes, et 2 secondes après chaque action dans l'appli :
+//  1. range le placard (noms et unités du catalogue) et y met les articles cochés « Acheté » dans Notion ;
+//  2. retire du placard ce qu'ont utilisé les repas passés ;
+//  3. complète le planning des 7 prochains jours sans toucher aux repas existants, et refait la liste ;
+//  4. remplit les colonnes vides des recettes (type, difficulté, coûts).
+// Les modifications faites à la main dans Notion sont vues au plus tard 10 minutes après (cache).
+const etatAuto = { dernier: null, erreur: null };
+
+const ajouterAuPlacard = (c, e) => {
+  const jour = aujourdhui();
+  const depart = c.pour && c.pour > jour ? c.pour : jour; // acheté pour un repas plus tard : congelé ou acheté à temps
+  return store.add('stock', { nom: e.nom, quantite: c.quantite, unite: e.unite, achat: jour, peremption: ajouterJours(depart, e.garde), origine: c.id });
+};
+
+async function rangerPlacard() {
+  const [stock, courses] = await Promise.all([store.list('stock'), store.list('courses')]);
+  for (const s of stock) {
+    const e = PRODUITS.get(s.nom) || lireLigne(s.nom || '').entree;
+    if (e && !e.placard && (e.nom !== s.nom || s.unite !== e.unite)) await store.update('stock', s.id, { nom: e.nom, unite: e.unite });
+  }
+  for (const c of courses.filter((x) => x.achete && x.quantite > 0)) {
+    const e = PRODUITS.get(c.article);
+    if (e && !e.placard && !stock.some((s) => s.origine === c.id)) await ajouterAuPlacard(c, e);
+  }
+}
+
+async function completerRecettes() {
+  const { recettes, analyses } = await contexte();
+  let ecrites = 0;
+  for (const r of recettes) {
+    const a = analyses.get(r.id);
+    const patch = {};
+    if (!r.type) patch.type = typeDe(r, a);
+    if (!r.difficulte) patch.difficulte = difficulteDe(nbIngredients(a), r.etapes);
+    if (!Number.isFinite(r.cout) || Math.abs(r.cout - a.cout) > 0.05) patch.cout = arrondi(a.cout);
+    if (!Number.isFinite(r.coutPortion) || Math.abs(r.coutPortion - a.coutPortion) > 0.05) patch.coutPortion = arrondi(a.coutPortion);
+    if (!Object.keys(patch).length) continue;
+    await store.update('recettes', r.id, patch);
+    if (++ecrites >= 20) break; // ponytail: 20 recettes par passage pour ménager Notion ; la suite au passage d'après
+  }
+}
+
+function automatique() {
+  return enSerie(async () => {
+    // Première fois : les contraintes connues (seul, une poêle et une casserole, pas d'omelette…).
+    const r = (await store.list('depenses')).find((d) => d.type === 'Budget');
+    if (r && !r.exclusions && !r.sansFour) await store.update('depenses', r.id, { exclusions: EXCLUSIONS_DEFAUT, sansFour: true });
+    const { recettes } = await contexte(); // charge aussi les synonymes
+    await rangerPlacard();
+    await consommerPasses();
+    if (recettes.length) await proposer({ completer: true });
+    await completerRecettes();
+  }).then(
+    () => Object.assign(etatAuto, { dernier: new Date().toISOString(), erreur: null }),
+    (err) => {
+      etatAuto.erreur = err.message;
+      console.error('Mode automatique :', err.message);
+    }
+  );
+}
+
+let minuterie;
+function declencher(delai = 2000) {
+  clearTimeout(minuterie);
+  minuterie = setTimeout(automatique, delai);
+}
 
 // 📌 Garder un repas (il ne bouge plus quand on repropose) ou le marquer « mangé ailleurs ».
 app.patch('/api/planning/:id', async (req, res) => {
@@ -383,6 +500,7 @@ app.patch('/api/planning/:id', async (req, res) => {
     verifier(!p.consomme, 'Ce repas est déjà passé');
     await store.update('planning', p.id, patch);
   });
+  declencher();
   res.json({ ok: true });
 });
 
@@ -395,11 +513,7 @@ app.patch('/api/courses/:id', async (req, res) => {
     const e = PRODUITS.get(c.article);
     if (!e || e.placard || !(c.quantite > 0)) return;
     const lies = (await store.list('stock')).filter((s) => s.origine === c.id);
-    if (achete && !lies.length) {
-      const jour = aujourdhui();
-      const depart = c.pour && c.pour > jour ? c.pour : jour; // acheté pour un repas plus tard : congelé ou acheté à temps
-      await store.add('stock', { nom: e.nom, quantite: c.quantite, unite: e.unite, achat: jour, peremption: ajouterJours(depart, e.garde), origine: c.id });
-    }
+    if (achete && !lies.length) await ajouterAuPlacard(c, e);
     if (!achete) for (const s of lies) await store.remove('stock', s.id);
   });
   res.json({ ok: true });
@@ -413,6 +527,7 @@ app.post('/api/stock', async (req, res) => {
   verifier(Number.isFinite(quantite) && quantite > 0 && quantite < 1000, 'Quantité invalide');
   const jour = aujourdhui();
   await enSerie(() => store.add('stock', { nom: e.nom, quantite, unite: e.unite, achat: jour, peremption: ajouterJours(jour, e.garde), origine: 'manuel' }));
+  declencher();
   res.json({ ok: true });
 });
 
@@ -424,6 +539,7 @@ app.patch('/api/stock/:id', async (req, res) => {
     if (quantite === 0) await store.remove('stock', req.params.id);
     else await store.update('stock', req.params.id, { quantite });
   });
+  declencher();
   res.json({ ok: true });
 });
 
@@ -432,6 +548,7 @@ app.delete('/api/stock/:id', async (req, res) => {
     await trouver('stock', req.params.id);
     await store.remove('stock', req.params.id);
   });
+  declencher();
   res.json({ ok: true });
 });
 
@@ -464,7 +581,11 @@ app.get('/api/budget', async (req, res) => {
     erreurArgenx = 'Base Notion « Courses payées » illisible : seules les dépenses saisies ici sont comptées.';
   }
   const depense = arrondi(dansPeriode.reduce((s, d) => s + (d.montant || 0), 0) + (argenx?.total || 0));
-  res.json({ ...regl, debut, fin, depense, reste: arrondi(regl.budget - depense), depenses: depenses.slice(0, 50), argenx, erreurArgenx });
+  // Ce que coûtent les repas de la période (estimé, au prorata) : à comparer à ce qui a vraiment été payé.
+  const prevu = arrondi((await store.list('planning'))
+    .filter((p) => p.date >= debut && p.date <= fin && !p.ailleurs)
+    .reduce((s, p) => s + (p.cout || 0), 0));
+  res.json({ ...regl, debut, fin, depense, prevu, reste: arrondi(regl.budget - depense), depenses: depenses.slice(0, 50), argenx, erreurArgenx });
 });
 
 app.post('/api/depenses', async (req, res) => {
@@ -484,6 +605,40 @@ app.delete('/api/depenses/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
+// --- À vérifier : ingrédients non reconnus → synonyme d'un produit ---------------
+app.get('/api/a-verifier', async (req, res) => {
+  const { recettes, analyses } = await contexte();
+  const mots = new Map();
+  for (const r of recettes) {
+    for (const l of analyses.get(r.id).lignes) {
+      if (!l.inconnu || !l.detail) continue;
+      const x = mots.get(l.detail) || { mot: l.detail, ligne: l.brut, recettes: [] };
+      if (!x.recettes.includes(r.nom)) x.recettes.push(r.nom);
+      mots.set(l.detail, x);
+    }
+  }
+  res.json({
+    mots: [...mots.values()].sort((a, b) => b.recettes.length - a.recettes.length || a.mot.localeCompare(b.mot, 'fr')),
+    produits: CATALOGUE.map((e) => e.nom),
+  });
+});
+
+// « sirop de grenadine » → Sucre : retenu dans la colonne Synonymes de Produits & prix.
+app.post('/api/synonymes', async (req, res) => {
+  const mot = norm(req.body?.mot || '');
+  const e = PRODUITS.get(req.body?.produit);
+  verifier(mot && mot.length <= 80, 'Mot invalide');
+  verifier(e, 'Produit inconnu');
+  await enSerie(async () => {
+    const lignes = (await store.list('produits')).filter((p) => p.nom === e.nom);
+    const cible = lignes.find((p) => p.source !== SOURCES.manuel) || lignes[0];
+    if (cible) await store.update('produits', cible.id, { synonymes: [cible.synonymes, mot].filter(Boolean).join(', ') });
+    else await store.add('produits', { nom: e.nom, categorie: e.rayon, unite: e.unite, prix: e.estimation, source: SOURCES.estimation, synonymes: mot });
+  });
+  declencher();
+  res.json({ ok: true });
+});
+
 // --- Erreurs -----------------------------------------------------------------
 app.use((err, req, res, next) => {
   if (!(err instanceof ErreurUtilisateur)) console.error(err);
@@ -493,4 +648,6 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3011;
 app.listen(PORT, () => {
   console.log(`Gestion des repas sur http://localhost:${PORT} (mode ${store.mode})`);
+  declencher(5000);
+  setInterval(() => declencher(0), 10 * 60e3);
 });

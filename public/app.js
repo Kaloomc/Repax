@@ -26,6 +26,7 @@ const BADGES = {
   'Saisi à la main': ['mon prix', 'manuel'],
 };
 const badge = (source) => {
+  if (!source) return '';
   const [texte, classe] = BADGES[source] || ['?', 'estime'];
   return `<span class="pastille ${classe}">${texte}</span>`;
 };
@@ -95,7 +96,8 @@ function afficherSemaine() {
       <div><small>Budget 7 jours</small><strong>${euros(s.budget)}</strong><small class="${s.total > s.budget ? 'rouge' : 'vert'}">${s.total > s.budget ? 'dépassé de ' + euros(s.total - s.budget) : 'reste ' + euros(s.budget - s.total)}</small></div>
     </div>
     ${barre(s.total, s.budget)}
-    <p class="aide">Du ${jourLong(s.debut)} au ${jourLong(s.fin)}${s.restes ? ' · restes du soir le lendemain midi' : ''}</p>`;
+    <p class="aide">Du ${jourLong(s.debut)} au ${jourLong(s.fin)}${s.restes ? ' · restes du soir le lendemain midi' : ''}</p>
+    ${s.auto?.dernier ? `<p class="aide">🤖 Complété automatiquement à ${new Date(s.auto.dernier).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>` : ''}${s.auto?.erreur ? `<p class="aide rouge">Mode automatique : ${esc(s.auto.erreur)}</p>` : ''}`;
   $('#proposer').textContent = s.repas.length ? '🔁 Proposer d’autres repas' : '✨ Proposer les repas';
 
   if (!s.repas.length && !s.absences.length) {
@@ -115,7 +117,7 @@ function afficherSemaine() {
         </div>` : `
         <div class="repas ${r.ailleurs ? 'ailleurs' : ''}">
           <span class="moment">${r.moment}</span>
-          <span class="nom">${r.restes ? '♻️ Restes : ' : ICONES[r.type] ? ICONES[r.type] + ' ' : ''}${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.repas)}</a>` : esc(r.repas)}${r.supprimee ? ' <small>(recette supprimée)</small>' : ''}${r.portions > 1 && !r.restes ? ` <small>× ${r.portions} portions</small>` : ''}${r.ailleurs ? ' <small>mangé ailleurs</small>' : ''}</span>
+          <span class="nom">${r.restes ? '♻️ Restes : ' : ICONES[r.type] ? ICONES[r.type] + ' ' : ''}${r.recette && !r.supprimee ? `<button class="lien" data-fiche="${esc(r.recette)}" data-portions="${r.portions || 1}">${esc(r.repas)}</button>` : esc(r.repas)}${r.supprimee ? ' <small>(recette supprimée)</small>' : ''}${r.portions > 1 && !r.restes ? ` <small>× ${r.portions} portions</small>` : ''}${r.ailleurs ? ' <small>mangé ailleurs</small>' : ''}</span>
           <span class="cout">${r.restes || r.ailleurs ? '' : r.cout > 0 ? euros(r.cout) : '<small>placard</small>'}</span>
           <span class="actions">
             ${r.ailleurs ? '' : `
@@ -126,6 +128,38 @@ function afficherSemaine() {
         </div>`).join('')}
     </div>`).join('');
 }
+
+// « 1. Couper… » une étape par ligne → <li> (la numérotation est refaite par <ol>).
+const listeEtapes = (etapes) => etapes.split('\n')
+  .map((x) => x.replace(/^\s*\d+\s*[.)-]\s*/, '').trim())
+  .filter(Boolean)
+  .map((x) => `<li>${esc(x)}</li>`)
+  .join('');
+
+// Fiche : ingrédients pour les portions de ce repas, et étapes de la recette.
+$('#jours').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-fiche]');
+  if (!b) return;
+  const portions = Number(b.dataset.portions) || 1;
+  try {
+    const r = await api(`/api/recettes/${encodeURIComponent(b.dataset.fiche)}`);
+    const pour = (l) => {
+      if (l.inconnu || l.placard || !l.qte) return '';
+      const q = (l.qte * portions) / r.portions;
+      return `<small>→ ${l.unite === 'pièce' ? '× ' + (Math.round(q * 10) / 10).toLocaleString('fr-FR') : quantite(q, l.unite)}</small>`;
+    };
+    $('#fiche-contenu').innerHTML = `
+      <h2>${ICONES[r.type] || ''} ${esc(r.nom)}</h2>
+      <p class="aide">Pour ${portions} portion${portions > 1 ? 's' : ''} (recette pour ${r.portions})${r.temps ? ` · ⏱ ${r.temps} min` : ''} · ${esc(r.difficulte)}${r.url ? ` · <a href="${esc(r.url)}" target="_blank" rel="noopener">Marmiton</a>` : ''}</p>
+      <h3>Ingrédients</h3>
+      <ul class="ingredients">${r.lignes.map((l) => `<li><span>${esc(l.brut)}</span>${pour(l)}</li>`).join('')}</ul>
+      <h3>Étapes</h3>
+      ${r.etapes ? `<ol class="etapes">${listeEtapes(r.etapes)}</ol>` : '<p class="vide">Pas d’étapes pour cette recette.</p>'}`;
+    $('#fiche').showModal();
+  } catch (err) {
+    alert(err.message);
+  }
+});
 
 // 📌 garder · 🔁 changer ce repas seulement · 🍽️ mangé ailleurs (la liste de courses est refaite)
 $('#jours').addEventListener('click', async (e) => {
@@ -279,7 +313,18 @@ $('#liste-stock').addEventListener('click', async (e) => {
 
 // --- Recettes ----------------------------------------------------------------
 async function chargerRecettes() {
-  const recettes = await api('/api/recettes');
+  const [recettes, verif] = await Promise.all([api('/api/recettes'), api('/api/a-verifier')]);
+  $('#a-verifier').innerHTML = verif.mots.length ? `
+    <h3>⚠️ À vérifier (${verif.mots.length})</h3>
+    <p class="aide">Ces ingrédients ne sont pas reconnus : ils sont comptés 0,50 € et jamais pris dans le placard. Dis à quel produit ils correspondent, l'appli s'en souviendra.</p>
+    <ul class="liste">${verif.mots.map((m) => `
+      <li>
+        <span class="nom">${esc(m.mot)} <small>${esc(m.recettes.slice(0, 3).join(', '))}${m.recettes.length > 3 ? '…' : ''}</small></span>
+        <select data-mot="${esc(m.mot)}" aria-label="Produit pour ${esc(m.mot)}">
+          <option value="">c'est…</option>
+          ${verif.produits.map((p) => `<option>${esc(p)}</option>`).join('')}
+        </select>
+      </li>`).join('')}</ul>` : '';
   $('#mes-recettes').innerHTML = recettes.length ? recettes.map((r) => `
     <li class="recette">
       <details>
@@ -287,6 +332,7 @@ async function chargerRecettes() {
           <span class="nom">${ICONES[r.type] || ''} ${esc(r.nom)}</span>
           <span class="cout">${euros(r.coutPortion)}<small>/portion</small></span>
           ${r.estime ? '<span class="pastille estime">prix estimés</span>' : ''}
+          ${r.exclue?.length ? `<span class="pastille exclue" title="Jamais proposée">🚫 ${esc(r.exclue.join(', '))}</span>` : ''}
         </summary>
         <label class="type-recette">Type de repas
           <select data-type="${esc(r.id)}">
@@ -295,6 +341,7 @@ async function chargerRecettes() {
         </label>
         <p class="aide">${r.portions} portions · ${r.nbIngredients} ingrédients${r.temps ? ` · ⏱ ${r.temps} min` : ''}${r.difficulte ? ` · ${esc(r.difficulte)}` : ''} · total ${euros(r.cout)}
           ${r.url ? ` · <a href="${esc(r.url)}" target="_blank" rel="noopener">voir sur Marmiton</a>` : ' · recette d’exemple'}</p>
+        ${r.etapes ? `<details class="etapes"><summary>Étapes</summary><ol>${listeEtapes(r.etapes)}</ol></details>` : ''}
         <ul class="ingredients">
           ${r.lignes.map((l) => `<li><span>${esc(l.brut)}</span>${l.placard ? '<small>placard</small>' : `<span>${euros(l.cout)} ${l.inconnu ? '<span class="pastille estime">non reconnu</span>' : badge(l.source)}</span>`}</li>`).join('')}
         </ul>
@@ -302,6 +349,15 @@ async function chargerRecettes() {
       </details>
     </li>`).join('') : '<p class="vide">Aucune recette. Cherche sur Marmiton ci-dessus.</p>';
 }
+
+// À vérifier : « sirop de grenadine » c'est… Sucre → retenu comme synonyme.
+$('#a-verifier').addEventListener('change', async (e) => {
+  const { mot } = e.target.dataset;
+  if (!mot || !e.target.value) return;
+  e.target.disabled = true;
+  await api('/api/synonymes', { method: 'POST', body: { mot, produit: e.target.value } }).catch((err) => alert(err.message));
+  chargerRecettes();
+});
 
 $('#mes-recettes').addEventListener('change', async (e) => {
   const id = e.target.dataset.type;
@@ -411,6 +467,7 @@ async function chargerBudget() {
       <div><small>Reste</small><strong class="${b.reste < 0 ? 'rouge' : 'vert'}">${euros(b.reste)}</strong></div>
     </div>
     ${barre(b.depense, b.budget)}
+    <p class="aide">Repas prévus sur la période : ${euros(b.prevu)} estimés · payé : ${euros(b.depense)}.</p>
     <p class="aide">Du ${jourCourt(b.debut)} au ${jourCourt(b.fin)}.${b.argenx ? ` Dont ${euros(b.argenx.total)} de courses par carte, lues dans Argenx : ne saisis ici que le liquide.` : ''}${b.erreurArgenx ? ' ' + esc(b.erreurArgenx) : ''}</p>`;
   const carte = (b.argenx?.operations || []).map((o) => `
     <li>
@@ -429,6 +486,8 @@ async function chargerBudget() {
   f.periode.value = b.periode;
   f.personnes.value = b.personnes;
   f.restes.checked = b.restes;
+  f.exclusions.value = b.exclusions;
+  f.sansFour.checked = b.sansFour;
   f.querySelectorAll('[name=repas]').forEach((c) => (c.checked = b.repas.includes(c.value)));
   const d = $('#form-depense');
   if (!d.date.value) d.date.value = dateDans(0);
@@ -465,7 +524,8 @@ $('#form-reglages').addEventListener('submit', async (e) => {
   try {
     await api('/api/reglages', {
       method: 'PUT',
-      body: { budget: Number(f.budget.value), periode: f.periode.value, personnes: Number(f.personnes.value), repas, restes: f.restes.checked },
+      body: { budget: Number(f.budget.value), periode: f.periode.value, personnes: Number(f.personnes.value), repas, restes: f.restes.checked,
+        exclusions: f.exclusions.value, sansFour: f.sansFour.checked },
     });
     dire(f, 'Réglages enregistrés ✔ Repropose les repas pour en tenir compte.');
     chargerBudget();

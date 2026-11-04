@@ -1,8 +1,8 @@
 // Vérifications rapides : npm test
 const test = require('node:test');
 const assert = require('node:assert');
-const { lireLigne, tarifs, analyserRecette, PRODUITS } = require('./ingredients');
-const { planifier, prendre, classer, creneauxAVenir, lundi, lieuDe, cleCreneau } = require('./planning');
+const { lireLigne, tarifs, analyserRecette, PRODUITS, definirSynonymes } = require('./ingredients');
+const { planifier, prendre, classer, creneauxAVenir, lundi, lieuDe, cleCreneau, raisonsExclusion, difficulteDe } = require('./planning');
 const { prixUnitaires } = require('./prix');
 const { lireRecette } = require('./marmiton');
 
@@ -190,13 +190,54 @@ test('prix Open Prices : au kilo et filtrés par nom', () => {
 });
 
 test('lecture d’une page de recette Marmiton', () => {
-  const html = `<script type="application/ld+json">{"@type":"Recipe","name":"Poulet basquaise : la meilleure recette","recipeYield":"6 personnes","totalTime":"PT1H20M","recipeIngredient":["1 kg de tomates","sel"]}</script>
+  const html = `<script type="application/ld+json">{"@type":"Recipe","name":"Poulet basquaise : la meilleure recette","recipeYield":"6 personnes","totalTime":"PT1H20M","recipeIngredient":["1 kg de tomates","sel"],"recipeInstructions":[{"@type":"HowToStep","text":"Couper les  tomates."},{"@type":"HowToStep","text":"Cuire."}]}</script>
     <script>{"recipeType":"plat-principal","recipeDifficulty":"facile"}</script>`;
   const r = lireRecette(html, 'u');
   assert.deepStrictEqual(r, {
     nom: 'Poulet basquaise', url: 'u', portions: 6, temps: 80, ingredients: '1 kg de tomates\nsel',
-    difficulte: 'facile', typeMarmiton: 'plat-principal',
+    difficulte: 'facile', typeMarmiton: 'plat-principal', etapes: '1. Couper les tomates.\n2. Cuire.',
   });
+});
+
+test('recettes exclues : je n’aime pas, fruits de mer, pas de four', () => {
+  const regl = { exclusions: 'omelette, soupe, fruits de mer', sansFour: true };
+  const raisons = (nom, ingredients, etapes = '') => raisonsExclusion({ nom, etapes }, analyserRecette({ ingredients }, tarifs([])).lignes, regl);
+  assert.deepStrictEqual(raisons('Omelette au fromage', '3 œufs'), ['omelette']);
+  assert.deepStrictEqual(raisons('Soupe de légumes', '2 carottes'), ['soupe']);
+  assert.deepStrictEqual(raisons('Poulet curry', '4 blancs de poulet\n2 cuillères à soupe de curry'), [], 'cuillère à soupe ne compte pas');
+  assert.deepStrictEqual(raisons('Pâtes du marin', '200 g de crevettes\n300 g de pâtes'), ['fruits de mer']);
+  assert.deepStrictEqual(raisons('Gratin de courgettes', '1 kg de courgettes'), ['four']);
+  assert.deepStrictEqual(raisons('Poulet rôti du dimanche', '1 poulet', '1. Préchauffer le four à 200 °C.'), ['four']);
+  assert.deepStrictEqual(raisons('Pâtes carbonara', '200 g de lardons', '1. Faire revenir les lardons à la poêle.'), []);
+  assert.strictEqual(difficulteDe(3, '1. a\n2. b'), 'très facile');
+  assert.strictEqual(difficulteDe(10, ''), 'moyenne');
+});
+
+test('synonymes choisis dans « À vérifier »', () => {
+  assert.strictEqual(lireLigne('2 cuillères de sirop de grenadine').entree, null);
+  definirSynonymes([{ nom: 'Sucre', synonymes: 'sirop de grenadine' }]);
+  assert.strictEqual(lireLigne('2 cuillères de sirop de grenadine').nom, 'Sucre');
+  definirSynonymes([]);
+});
+
+test('planning : une recette exclue n’est jamais proposée', () => {
+  const recettes = [
+    { id: 'four', type: 'Plat du soir', exclue: true, besoins: [{ nom: 'Riz', qte: 0.01 }] },
+    { id: 'ok', type: 'Plat du soir', besoins: [{ nom: 'Pâtes', qte: 0.1 }] },
+    { id: 'ok2', type: 'Plat du soir', besoins: [{ nom: 'Lardons', qte: 0.05 }] },
+  ];
+  const soirs = creneaux.filter((c) => c.moment === 'soir');
+  const plan = planifier({ recettes, produits, creneaux: soirs, reglages, hasard: () => 0.5 });
+  assert.ok(plan.repas.every((r) => r.recette !== 'four'));
+});
+
+test('planning : compléter un trou tient compte des repas déjà prévus après', () => {
+  const recettes = ['a', 'b', 'c'].map((id) => ({ id, type: 'Plat du soir', besoins: [{ nom: 'Pâtes', qte: 0.1 }] }));
+  const soirs = creneaux.filter((c) => c.moment === 'soir').slice(0, 4);
+  // Soirs 2, 3 et 4 déjà décidés (a, b, a) : le soir 1 ne peut être ni a (déjà 2 fois) ni b (le lendemain).
+  const fixes = new Map(soirs.slice(1).map((c, i) => [cleCreneau(c.date, c.moment), { recette: ['a', 'b', 'a'][i], portions: 1 }]));
+  const plan = planifier({ recettes, produits, creneaux: soirs, reglages, fixes, hasard: () => 0.5 });
+  assert.strictEqual(plan.repas[0].recette, 'c');
 });
 
 test('présence lue dans la base Notion « Présence » (Agendix)', () => {

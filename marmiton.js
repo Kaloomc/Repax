@@ -56,6 +56,12 @@ function lireRecette(html, url) {
       portions: parseInt([r.recipeYield].flat()[0], 10) || 4,
       temps: minutes(r.totalTime),
       ingredients: (r.recipeIngredient || []).join('\n'),
+      // Étapes numérotées, une par ligne (comme dans la base Notion).
+      etapes: [r.recipeInstructions || []].flat()
+        .map((e) => String(typeof e === 'string' ? e : e?.text || '').replace(/\s+/g, ' ').trim())
+        .filter(Boolean)
+        .map((e, i) => `${i + 1}. ${e}`)
+        .join('\n'),
       // Infos de la page hors JSON-LD (facultatives) : "facile", "plat-principal"…
       difficulte: html.match(/"recipeDifficulty":"([^"]+)"/)?.[1] || null,
       typeMarmiton: html.match(/"recipeType":"([^"]+)"/)?.[1] || null,

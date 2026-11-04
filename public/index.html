@@ -75,6 +75,7 @@
         <p class="message" role="status"></p>
         <ul id="resultats" class="liste"></ul>
       </form>
+      <div id="a-verifier"></div>
       <h3>Mes recettes</h3>
       <ul id="mes-recettes" class="liste"></ul>
     </section>
@@ -132,11 +133,20 @@
           <label class="case"><input type="checkbox" name="repas" value="soir"> Soir</label>
         </fieldset>
         <label class="case"><input type="checkbox" name="restes"> Cuisiner le soir en double et manger les restes le lendemain midi</label>
+        <label>Je n'aime pas <small>(mots séparés par des virgules ; « fruits de mer » compte crevettes, moules…)</small>
+          <input name="exclusions" maxlength="300" placeholder="omelette, soupe, fruits de mer">
+        </label>
+        <label class="case"><input type="checkbox" name="sansFour"> Pas de four (une poêle et une casserole)</label>
         <button type="submit">Enregistrer les réglages</button>
         <p class="message" role="status"></p>
       </form>
     </section>
   </main>
+
+  <dialog id="fiche">
+    <form method="dialog"><button class="fermer" aria-label="Fermer">✕</button></form>
+    <div id="fiche-contenu"></div>
+  </dialog>
 
   <nav>
     <a href="#semaine">🗓️<span>Semaine</span></a>

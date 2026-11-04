@@ -13,6 +13,7 @@ const SCHEMAS = {
     champs: {
       nom: ['Nom', 'title'], categorie: ['Catégorie', 'select'], prix: ['Prix', 'number'],
       unite: ['Unité', 'select'], source: ['Source du prix', 'select'], datePrix: ['Date du prix', 'date'],
+      synonymes: ['Synonymes', 'rich_text'],
     },
   },
   recettes: {
@@ -21,7 +22,7 @@ const SCHEMAS = {
       nom: ['Nom', 'title'], url: ['Lien Marmiton', 'url'], portions: ['Portions', 'number'],
       ingredients: ['Ingrédients', 'rich_text'], temps: ['Temps (min)', 'number'], cout: ['Coût estimé', 'number'],
       coutPortion: ['Coût par portion', 'number'], dateRecup: ['Date de récupération', 'date'],
-      type: ['Type de repas', 'select'], difficulte: ['Difficulté', 'select'],
+      type: ['Type de repas', 'select'], difficulte: ['Difficulté', 'select'], etapes: ['Étapes', 'rich_text'],
     },
   },
   planning: {
@@ -54,6 +55,7 @@ const SCHEMAS = {
       libelle: ['Libellé', 'title'], type: ['Type', 'select'], montant: ['Montant', 'number'], date: ['Date', 'date'],
       periode: ['Période', 'select'], magasin: ['Magasin', 'rich_text'], personnes: ['Personnes', 'number'],
       repas: ['Repas', 'multi_select'], restes: ['Restes le midi', 'checkbox'],
+      exclusions: ["Je n'aime pas", 'rich_text'], sansFour: ['Pas de four', 'checkbox'],
     },
   },
   // Bases des autres applis, dans la même page Notion : lues seulement, jamais créées ni modifiées ici.

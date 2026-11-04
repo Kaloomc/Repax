@@ -155,3 +155,16 @@ nav a {
 }
 nav a span { font-size: .7rem; }
 nav a.active { color: var(--vert); font-weight: 600; }
+
+.pastille.exclue { background: var(--fond); color: var(--rouge); border: 1px solid var(--rouge); }
+details.etapes summary { cursor: pointer; color: var(--vert); margin: 4px 0; }
+ol.etapes, details.etapes ol { padding-left: 1.4em; margin: 4px 0 12px; }
+ol.etapes li, details.etapes li { margin-bottom: 6px; }
+#a-verifier select { width: auto; min-height: 36px; padding: 4px 8px; }
+dialog#fiche {
+  width: min(600px, calc(100vw - 32px)); max-height: 85vh; padding: 16px;
+  border: 1px solid var(--bord); border-radius: 12px; background: var(--carte); color: var(--texte);
+}
+dialog#fiche::backdrop { background: rgba(0, 0, 0, .5); }
+dialog#fiche h2 { margin-right: 40px; }
+dialog#fiche .fermer { position: absolute; top: 8px; right: 8px; min-height: 36px; padding: 4px 12px; background: transparent; color: var(--texte); }

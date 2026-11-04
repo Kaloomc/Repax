@@ -135,8 +135,27 @@ const UNITES = [
   [/^(tranches?|gousses?|bottes?|brins?|feuilles?|morceaux?|pots?|paquets?)\b/, 'compte', 1],
 ];
 
+// Synonymes choisis par l'utilisateur dans « À vérifier » (colonne Synonymes de Produits & prix) :
+// mot normalisé → nom du produit. Ils passent avant le catalogue.
+const SYNONYMES = new Map();
+function definirSynonymes(produits) {
+  SYNONYMES.clear();
+  for (const p of produits) {
+    if (!PRODUITS.has(p.nom)) continue;
+    for (const mot of String(p.synonymes || '').split(/[,\n]/)) if (norm(mot)) SYNONYMES.set(norm(mot), p.nom);
+  }
+}
+
 function reconnaitre(nom) {
   const texte = ' ' + nom;
+  let synonyme = null, long = 0;
+  for (const [mot, produit] of SYNONYMES) {
+    if (mot.length > long && texte.includes(' ' + mot)) {
+      synonyme = PRODUITS.get(produit);
+      long = mot.length;
+    }
+  }
+  if (synonyme) return synonyme;
   let meilleur = null, longueur = 0;
   for (const e of CATALOGUE) {
     for (const mot of e.mots) {
@@ -213,4 +232,4 @@ function analyserRecette(recette, t) {
   return { lignes, cout, coutPortion: cout / portions, estime: lignes.some((l) => !l.placard && l.source === SOURCES.estimation) };
 }
 
-module.exports = { CATALOGUE, PRODUITS, SOURCES, PRIX_INCONNU, norm, lireLigne, tarifs, analyserRecette };
+module.exports = { CATALOGUE, PRODUITS, SOURCES, PRIX_INCONNU, SYNONYMES, norm, lireLigne, tarifs, analyserRecette, definirSynonymes };
