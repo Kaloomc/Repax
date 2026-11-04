@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { lireLigne, tarifs, analyserRecette, PRODUITS, definirSynonymes } = require('./ingredients');
-const { planifier, prendre, classer, creneauxAVenir, lundi, lieuDe, cleCreneau, raisonsExclusion, difficulteDe, difficulteLisible } = require('./planning');
+const { planifier, prendre, classer, creneauxAVenir, lundi, lieuDe, cleCreneau, raisonsExclusion, difficulteDe, difficulteLisible, preparerEcritures, verifierEcritures } = require('./planning');
 const { prixUnitaires } = require('./prix');
 const { lireRecette } = require('./marmiton');
 
@@ -289,4 +289,39 @@ test('refresh Notion : relit à la demande, garde l’ancien contenu si la lectu
     global.fetch = ancien;
     delete process.env.NOTION_PAGE_ID;
   }
+});
+
+test('écritures du planning : jamais deux repas sur un créneau, rien de supprimé ni recréé à tort', () => {
+  const cle = (p) => cleCreneau(p.date, p.moment);
+  const l = (id, date, moment, extra = {}) => ({ id, date, moment, recette: 'r' + id, garde: false, consomme: false, ...extra });
+  // Notion : repas du 5 nov. midi, un repas déplacé à la main au 12 nov. soir (hors des 7 jours), un épinglé.
+  const notion = [l('a', '2026-11-05', 'midi'), l('b', '2026-11-12', 'soir'), l('c', '2026-11-05', 'soir', { garde: true })];
+  // L'appli ne gère que les 7 jours : 5 nov. midi (changé) et 5 nov. soir (épinglé, absent des lignes voulues).
+  const gere = notion.filter((p) => p.date <= '2026-11-10');
+  const voulues = [{ ...l('x', '2026-11-05', 'midi'), recette: 'autre' }, l('y', '2026-11-06', 'midi')];
+  const ops = preparerEcritures(gere, voulues, cle);
+  assert.deepStrictEqual(ops.modifs.map(([a]) => a.id), ['a'], 'modifié sur place');
+  assert.deepStrictEqual(ops.ajouts.map((x) => x.id), ['y']);
+  assert.deepStrictEqual(ops.retraits.map((a) => a.id), ['c']);
+  const sur = verifierEcritures(ops, notion, cle);
+  assert.deepStrictEqual(sur.retraits, [], 'un repas épinglé n’est jamais retiré');
+  assert.ok(!sur.retraits.some((a) => a.id === 'b'), 'le repas déplacé hors des 7 jours n’est pas touché');
+  assert.strictEqual(sur.ajouts.length, 1);
+
+  // Entre-temps, dans Notion : un repas « Consommé » ou arrivé à la main occupe le créneau → pas d'ajout.
+  assert.deepStrictEqual(verifierEcritures(ops, [...notion, l('z', '2026-11-06', 'midi', { consomme: true })], cle).ajouts, []);
+  // Une ligne déplacée à la main entre la lecture et l'écriture n'est ni modifiée ni retirée.
+  const deplacee = notion.map((p) => (p.id === 'a' ? { ...p, date: '2026-11-09' } : p));
+  assert.deepStrictEqual(verifierEcritures(ops, deplacee, cle).modifs, []);
+  const retiree = [...notion.filter((p) => p.id !== 'a')];
+  assert.deepStrictEqual(verifierEcritures({ ajouts: [], modifs: [], retraits: [gere[0]] }, retiree, cle).retraits, []);
+  // Une ligne identique ne génère aucune écriture.
+  const ident = preparerEcritures(gere, gere.map((p) => ({ ...p })), cle);
+  assert.deepStrictEqual([ident.ajouts, ident.modifs, ident.retraits], [[], [], []]);
+});
+
+test('présence : une ligne « Angoulême » n’est pas une absence', () => {
+  const lignes = [{ du: '2026-11-06', duMoment: 'midi', au: '2026-11-06', auMoment: 'soir', lieu: 'Angoulême', ordre: 1 }];
+  assert.strictEqual(lieuDe(lignes, '2026-11-06', 'midi'), 'Angoulême');
+  assert.strictEqual(lieuDe(lignes, '2026-11-06', 'soir'), 'Angoulême');
 });

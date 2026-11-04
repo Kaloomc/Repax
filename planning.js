@@ -259,7 +259,44 @@ function lieuDe(presence, date, moment) {
   return p?.lieu ?? recente(presence.filter((l) => !l.du && l.lieu))?.lieu ?? 'Angoulême';
 }
 
+// --- Écrire le planning sans abîmer ce qui a changé à la main dans Notion --------------------------
+const pareil = (a, b) => Object.keys(b).every((k) => (a[k] ?? null) === b[k]);
+
+// Compare les lignes actuelles et les lignes voulues, repas par repas (cle) : ce qu'il faut ajouter, modifier
+// sur place ou retirer. Une ligne identique ne bouge pas ; une ligne qui change est modifiée, jamais recréée.
+function preparerEcritures(anciennes, lignes, cle) {
+  const libres = new Map(anciennes.map((a) => [cle(a), a]));
+  const ops = { ajouts: [], modifs: [], retraits: [] };
+  for (const l of lignes) {
+    const a = libres.get(cle(l));
+    libres.delete(cle(l));
+    if (!a) ops.ajouts.push(l);
+    else if (!pareil(a, l)) ops.modifs.push([a, l]);
+  }
+  ops.retraits = [...libres.values()];
+  return ops;
+}
+
+// Dernier contrôle avec le planning tel que Notion le montre à l'instant d'écrire (`fraiches`) :
+//  - on n'ajoute jamais sur un créneau où une ligne existe déjà (même « Consommé », même arrivée entre-temps) ;
+//  - on ne touche pas une ligne déplacée, changée de recette, épinglée ou cochée Consommé depuis qu'on l'a lue ;
+//  - on ne retire jamais une ligne qui n'est plus celle qu'on avait lue.
+function verifierEcritures(ops, fraiches, cle) {
+  const parId = new Map(fraiches.map((x) => [x.id, x]));
+  const pris = new Set(fraiches.filter((x) => x.date && x.moment).map(cle));
+  const intacte = (a) => {
+    const f = parId.get(a.id);
+    return !!f && cle(f) === cle(a) && (f.recette ?? null) === (a.recette ?? null) && !!f.garde === !!a.garde && !f.consomme;
+  };
+  return {
+    ajouts: ops.ajouts.filter((l) => !pris.has(cle(l))),
+    modifs: ops.modifs.filter(([a]) => intacte(a)),
+    retraits: ops.retraits.filter((a) => intacte(a) && !a.garde),
+  };
+}
+
 module.exports = {
+  preparerEcritures, verifierEcritures, pareil,
   planifier, prendre, classer, TYPES, creneauxAVenir, estPasse, maintenantParis,
   lundi, ajouterJours, aujourdhui, budgetSemaine, lieuDe, cleCreneau,
   raisonsExclusion, difficulteDe, difficulteLisible, EXCLUSIONS_DEFAUT,

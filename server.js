@@ -8,7 +8,7 @@ const { CATALOGUE, PRODUITS, SOURCES, tarifs, analyserRecette, definirSynonymes,
 const {
   planifier, prendre, classer, TYPES, creneauxAVenir, estPasse, maintenantParis,
   lundi, ajouterJours, aujourdhui, budgetSemaine, lieuDe, cleCreneau,
-  raisonsExclusion, difficulteDe, difficulteLisible, EXCLUSIONS_DEFAUT,
+  raisonsExclusion, difficulteDe, difficulteLisible, EXCLUSIONS_DEFAUT, preparerEcritures, verifierEcritures,
 } = require('./planning');
 
 const app = express();
@@ -334,19 +334,37 @@ app.get('/api/semaine', async (req, res) => {
 
 // Toutes les colonnes, pour qu'une ligne réutilisée ne garde rien de son ancien contenu.
 const complet = (col, obj) => Object.fromEntries(Object.keys(store.SCHEMAS[col].champs).map((k) => [k, obj[k] ?? null]));
-const pareil = (a, b) => Object.keys(b).every((k) => (a[k] ?? null) === b[k]);
+
+// Bases que Repax réécrit : relues dans Notion juste avant de décider, pour ne pas travailler sur un cache périmé
+// (modifs faites à la main, par Claude ou par une autre appli depuis la dernière lecture). Si Notion est illisible,
+// on n'écrit rien. Pas de relecture plus d'une fois toutes les 5 secondes.
+const BASES_REECRITES = ['planning', 'courses', 'stock'];
+let derniereRelecture = 0;
+async function relire(cols = BASES_REECRITES) {
+  if (cols === BASES_REECRITES && Date.now() - derniereRelecture < 5000) return;
+  const erreurs = await store.rafraichir(cols);
+  const ko = Object.entries(erreurs).filter(([, e]) => e).map(([c]) => store.SCHEMAS[c].titre);
+  if (ko.length) throw new Error(`Notion illisible (${ko.join(', ')}) : je n'écris rien pour ne pas écraser tes modifications.`);
+  if (cols === BASES_REECRITES) derniereRelecture = Date.now();
+}
+const relirePlanning = async () => {
+  await relire(['planning']);
+  return store.list('planning');
+};
 
 // Écrit `lignes` à la place de `anciennes` en touchant le moins de lignes Notion possible :
-// une ligne identique ne bouge pas, une ligne qui change est modifiée sur place.
-async function remplacerLignes(col, anciennes, lignes, cle) {
-  const libres = new Map(anciennes.map((a) => [cle(a), a]));
-  const ecritures = lignes.map((l) => {
-    const a = libres.get(cle(l));
-    libres.delete(cle(l));
-    if (!a) return store.add(col, l);
-    return pareil(a, l) ? null : store.update(col, a.id, l);
-  });
-  await Promise.all([...ecritures, ...[...libres.values()].map((a) => store.remove(col, a.id))]);
+// une ligne identique ne bouge pas, une ligne qui change est modifiée sur place (jamais supprimée puis recréée).
+// `relireFrais` (planning) : liste fraîche de Notion, pour un dernier contrôle juste avant d'écrire.
+async function remplacerLignes(col, anciennes, lignes, cle, relireFrais) {
+  let ops = preparerEcritures(anciennes, lignes, cle);
+  if (relireFrais && (ops.ajouts.length || ops.modifs.length || ops.retraits.length)) {
+    ops = verifierEcritures(ops, await relireFrais(), cle);
+  }
+  await Promise.all([
+    ...ops.ajouts.map((l) => store.add(col, l)),
+    ...ops.modifs.map(([a, l]) => store.update(col, a.id, l)),
+    ...ops.retraits.map((a) => store.remove(col, a.id)),
+  ]);
 }
 
 // Propose les repas des 7 prochains jours. Les repas 📌 gardés et « mangé ailleurs » ne bougent pas.
@@ -362,6 +380,7 @@ const manuelle = (c) => !c.source && c.unite !== 'placard';
 let annulation = null;
 
 async function proposer({ changer, completer = false } = {}) {
+  await relire(); // Notion tel qu'il est maintenant, pas le cache
   const m = maintenantParis();
   const [{ recettes, t, analyses }, regl, planning, courses, stock] = await Promise.all([
     contexte(), reglages(), store.list('planning'), store.list('courses'), store.list('stock'),
@@ -372,9 +391,16 @@ async function proposer({ changer, completer = false } = {}) {
   const cle = (p) => cleCreneau(p.date, p.moment);
   const aVenir = planning.filter((p) => p.date && p.moment && !p.consomme && !estPasse(p.date, p.moment, m));
   const aLaMain = new Set(aVenir.filter((p) => !p.recette && !p.ailleurs).map(cle));
-  const geres = aVenir.filter((p) => !aLaMain.has(cle(p)));
-  // Seulement les repas où je suis à Angoulême (d'après Agendix), hors repas notés à la main.
-  const creneaux = creneauxAVenir(regl.repas, m).filter((c) => lieu(c) === 'Angoulême' && !aLaMain.has(cle(c)));
+  // Les 7 prochains jours : Repax ne remplit, ne modifie ni ne retire rien en dehors (un repas déplacé à la main
+  // au-delà, dans Notion, reste tel quel).
+  const fenetre = creneauxAVenir(regl.repas, m);
+  const dansFenetre = new Set(fenetre.map(cle));
+  const geres = aVenir.filter((p) => !aLaMain.has(cle(p)) && dansFenetre.has(cle(p)));
+  // Un repas coché « Consommé » occupe son créneau (le soir d'aujourd'hui avant 21 h, par exemple) : rien à y ajouter.
+  const occupes = new Set(planning.filter((p) => p.date && p.moment && p.consomme).map(cle));
+  // Seulement les repas où je suis à Angoulême (d'après Agendix : « Angoulême » n'est pas une absence),
+  // hors repas notés à la main et créneaux déjà occupés.
+  const creneaux = fenetre.filter((c) => lieu(c) === 'Angoulême' && !aLaMain.has(cle(c)) && !occupes.has(cle(c)));
   const produits = new Map(CATALOGUE.filter((e) => !e.placard).map((e) => [e.nom, { ...e, prix: t.get(e.nom).prix }]));
 
   const parCreneau = new Map(geres.map((p) => [cle(p), p]));
@@ -442,13 +468,14 @@ async function proposer({ changer, completer = false } = {}) {
       quand: Date.now(),
       planning: geres.map((p) => complet('planning', p)),
       courses: courses.filter((c) => !c.achete && !manuelle(c)).map((c) => complet('courses', c)),
+      fenetre: [...dansFenetre],
     };
   }
   // Un article acheté reste affiché (coché) le jour même et le lendemain, puis quitte la liste : il est au placard.
   const hier = ajouterJours(m.date, -1);
   const anciens = courses.filter((c) => c.achete && !manuelle(c) && !stock.some((s) => s.origine === c.id && s.achat >= hier));
   await Promise.all([
-    remplacerLignes('planning', geres, nouveauxRepas, cle),
+    remplacerLignes('planning', geres, nouveauxRepas, cle, relirePlanning),
     remplacerLignes('courses', courses.filter((c) => !c.achete && !manuelle(c)), nouvellesCourses, (c) => c.article),
     ...anciens.map((c) => store.remove('courses', c.id)),
   ]);
@@ -458,6 +485,7 @@ async function proposer({ changer, completer = false } = {}) {
 app.post('/api/semaine', async (req, res) => {
   const completer = req.body?.completer === true || req.body?.recalculer === true;
   const gaspillage = await enSerie(async () => {
+    await relire();
     await consommerPasses();
     return proposer({ changer: req.body?.changer, completer });
   });
@@ -467,12 +495,15 @@ app.post('/api/semaine', async (req, res) => {
 app.post('/api/semaine/annuler', async (req, res) => {
   await enSerie(async () => {
     verifier(annulation && Date.now() - annulation.quand < 10 * 60e3, 'Plus rien à annuler');
+    await relire();
     const m = maintenantParis();
     const cle = (p) => cleCreneau(p.date, p.moment);
     const [planning, courses] = await Promise.all([store.list('planning'), store.list('courses')]);
-    const aVenir = planning.filter((p) => p.date && p.moment && !p.consomme && !estPasse(p.date, p.moment, m) && (p.recette || p.ailleurs));
+    // Seulement les repas des 7 jours qui avaient été proposés : le reste du planning n'est pas touché.
+    const fenetre = new Set(annulation.fenetre);
+    const aVenir = planning.filter((p) => p.date && p.moment && !p.consomme && !estPasse(p.date, p.moment, m) && (p.recette || p.ailleurs) && fenetre.has(cle(p)));
     await Promise.all([
-      remplacerLignes('planning', aVenir, annulation.planning.filter((p) => !estPasse(p.date, p.moment, m)), cle),
+      remplacerLignes('planning', aVenir, annulation.planning.filter((p) => !estPasse(p.date, p.moment, m)), cle, relirePlanning),
       remplacerLignes('courses', courses.filter((c) => !c.achete && !manuelle(c)), annulation.courses, (c) => c.article),
     ]);
     annulation = null;
@@ -489,6 +520,7 @@ app.post('/api/planning', async (req, res) => {
     const [r, regl, planning] = await Promise.all([trouver('recettes', recette), reglages(), store.list('planning')]);
     const ligne = { repas: r.nom, date, moment, recette: r.id, portions: regl.personnes, restes: false, garde: true, ailleurs: false, consomme: false };
     const existant = planning.find((p) => p.date === date && p.moment === moment && !p.consomme);
+    verifier(!planning.some((p) => p.date === date && p.moment === moment && p.consomme), 'Ce repas est déjà mangé');
     if (existant) await store.update('planning', existant.id, ligne);
     else await store.add('planning', ligne);
   });
@@ -555,6 +587,7 @@ async function completerRecettes() {
 
 function automatique() {
   return enSerie(async () => {
+    await relire();
     // Première fois : les contraintes connues (seul, une poêle et une casserole, pas d'omelette…).
     const r = (await store.list('depenses')).find((d) => d.type === 'Budget');
     if (r && !r.exclusions && !r.sansFour) await store.update('depenses', r.id, { exclusions: EXCLUSIONS_DEFAUT, sansFour: true });
