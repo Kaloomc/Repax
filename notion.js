@@ -169,6 +169,22 @@ module.exports = function notion(SCHEMAS, nettoyer, graines) {
 
   return {
     mode: 'notion',
+    // Relit tout de suite ces bases dans Notion (« refresh » à la demande). Le cache n'est remplacé que si la
+    // lecture réussit : en cas d'erreur, l'ancien contenu reste utilisable. → { col: null | message d'erreur }
+    async rafraichir(cols) {
+      const erreurs = {};
+      await Promise.all(cols.map(async (col) => {
+        try {
+          const neuve = { quand: Date.now(), lignes: charger(col) };
+          await neuve.lignes;
+          cache.set(col, neuve);
+          erreurs[col] = null;
+        } catch (err) {
+          erreurs[col] = err.message;
+        }
+      }));
+      return erreurs;
+    },
     list: async (col) => structuredClone(await entree(col).lignes),
     async add(col, obj) {
       const ligne = await creer(await getBases(), col, obj);

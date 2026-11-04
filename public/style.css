@@ -243,6 +243,11 @@ button { cursor: pointer; border: 0; background: none; }
 .icone-seule:active { background: var(--surface-2); }
 .icone-seule.principal { background: var(--accent); color: var(--accent-texte); }
 .icone-seule[aria-pressed="true"] { background: var(--accent-doux); color: var(--accent); }
+/* Refresh Notion en cours : l'icône tourne (sans animation si le téléphone la réduit : elle s'atténue). */
+@keyframes tourne { to { transform: rotate(360deg); } }
+.icone-seule.charge { color: var(--accent); }
+.icone-seule.charge .i { animation: tourne 900ms linear infinite; }
+@media (prefers-reduced-motion: reduce) { .icone-seule.charge .i { animation: none; opacity: .5; } }
 .lien-fort { color: var(--accent); font-weight: 700; padding: var(--e2); min-height: 44px; }
 
 /* Puces : un seul style, 3 variantes sémantiques */

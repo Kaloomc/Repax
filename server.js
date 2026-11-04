@@ -143,6 +143,16 @@ app.get('/api/etat', (req, res) => {
   res.json({ mode: store.mode, motDePasse: !!MOT_DE_PASSE, auto: etatAuto });
 });
 
+// Refresh à la demande : relit dans Notion les bases que l'écran affiche, sans attendre l'expiration du cache
+// (10 min pour les bases de Repax, 2 min pour Présence et Courses payées). Utile juste après une modif dans Agendix,
+// Argenx ou Notion. Les lignes de chaque base ne sont remplacées que si leur lecture réussit.
+const A_RAFRAICHIR = ['presence', 'coursesPayees', 'planning', 'courses', 'stock', 'depenses'];
+app.post('/api/notion/rafraichir', async (req, res) => {
+  const erreurs = await enSerie(() => store.rafraichir(A_RAFRAICHIR));
+  const echecs = Object.entries(erreurs).filter(([, e]) => e).map(([col, message]) => ({ base: store.SCHEMAS[col].titre, message }));
+  res.json({ mode: store.mode, ok: !echecs.length, echecs });
+});
+
 app.put('/api/reglages', async (req, res) => {
   const { budget, periode, personnes, repas, restes = false, exclusions = '', sansFour = false } = req.body ?? {};
   verifier(

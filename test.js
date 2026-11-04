@@ -257,3 +257,36 @@ test('présence lue dans la base Notion « Présence » (Agendix)', () => {
   assert.strictEqual(lieuDe([{ lieu: 'Parents', ordre: 1 }], '2026-11-25', 'midi'), 'Parents'); // lieu par défaut changé
   assert.strictEqual(lieuDe([], '2026-11-25', 'midi'), 'Angoulême'); // base vide ou absente
 });
+
+test('refresh Notion : relit à la demande, garde l’ancien contenu si la lecture échoue', async () => {
+  let nom = 'Pâtes', panne = false, lectures = 0;
+  const ancien = global.fetch;
+  global.fetch = async (url) => {
+    const chemin = url.replace('https://api.notion.com/v1', '');
+    const repondre = (data, ok = true) => ({ ok, status: ok ? 200 : 400, headers: new Map(), json: async () => data });
+    if (chemin.startsWith('/blocks/')) return repondre({ results: [{ type: 'child_database', id: 'base', child_database: { title: 'T' } }] });
+    if (chemin === '/databases/base') return repondre({ properties: { Nom: { title: {} } } });
+    lectures++;
+    if (panne) return repondre({ message: 'panne Notion' }, false);
+    return repondre({ results: [{ id: 'a', properties: { Nom: { type: 'title', title: [{ plain_text: nom }] } } }], next_cursor: null });
+  };
+  process.env.NOTION_PAGE_ID = '0123456789abcdef0123456789abcdef';
+  try {
+    const SCHEMAS = { t: { titre: 'T', champs: { nom: ['Nom', 'title'] } } };
+    const notion = require('./notion')(SCHEMAS, (col, o) => o, {});
+    assert.deepStrictEqual(await notion.list('t'), [{ id: 'a', nom: 'Pâtes' }]);
+    nom = 'Riz'; // modifié dans Notion : le cache ne le voit pas encore
+    assert.strictEqual((await notion.list('t'))[0].nom, 'Pâtes');
+    assert.deepStrictEqual(await notion.rafraichir(['t']), { t: null });
+    assert.strictEqual((await notion.list('t'))[0].nom, 'Riz');
+    const avant = lectures;
+    panne = true;
+    nom = 'Semoule';
+    assert.deepStrictEqual(await notion.rafraichir(['t']), { t: 'Notion : panne Notion' });
+    assert.strictEqual((await notion.list('t'))[0].nom, 'Riz', 'ancien contenu gardé');
+    assert.strictEqual(lectures, avant + 1, 'la liste suivante ne relit pas Notion');
+  } finally {
+    global.fetch = ancien;
+    delete process.env.NOTION_PAGE_ID;
+  }
+});

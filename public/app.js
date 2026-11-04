@@ -135,7 +135,33 @@ function majEtat() {
   b.hidden = !etat.mode;
   b.className = `puce discrete ${etat.mode === 'notion' ? 'ok' : 'attention'}`;
   b.innerHTML = etat.mode === 'notion' ? `${ic('check')} Notion` : 'Démo';
+  $('#bouton-notion').hidden = etat.mode !== 'notion'; // rien à recharger en mode démo
 }
+
+// Refresh Notion à la demande : relit présence (Agendix), courses payées (Argenx), planning, courses, placard et
+// dépenses, puis met à jour l'onglet affiché. L'icône tourne pendant le chargement ; erreur → toast.
+let rafraichissement = false;
+$('#bouton-notion').addEventListener('click', async () => {
+  if (rafraichissement) return;
+  rafraichissement = true;
+  const b = $('#bouton-notion');
+  b.disabled = true;
+  b.classList.add('charge');
+  b.setAttribute('aria-busy', 'true');
+  toast('Rechargement depuis Notion…');
+  try {
+    const r = await api('/api/notion/rafraichir', { method: 'POST' });
+    await CHARGER[location.hash.slice(1) || 'semaine']?.(); // l'affichage reprend les données fraîches, même partielles
+    toast(r.ok ? 'Données Notion rechargées' : `Notion : ${r.echecs.map((e) => `« ${e.base} » illisible`).join(', ')}. Anciennes données gardées.`);
+  } catch (err) {
+    toast(`Rechargement impossible : ${err.message}`);
+  } finally {
+    rafraichissement = false;
+    b.disabled = false;
+    b.classList.remove('charge');
+    b.removeAttribute('aria-busy');
+  }
+});
 const texteEtat = () => etat.mode === 'notion'
   ? `<p>${ic('check')} <b>Connecté à Notion.</b> Les recettes, le planning, la liste et le placard viennent de ta page Notion, et tout ce que tu fais ici y est écrit.</p>`
   : `<p><b>Mode démo :</b> l'appli n'est pas reliée à Notion. Elle utilise ses propres recettes d'exemple et garde tout dans un fichier sur le serveur.</p>

@@ -103,6 +103,7 @@ function demo() {
   }
   return {
     mode: 'demo',
+    rafraichir: async (cols) => Object.fromEntries(cols.map((c) => [c, null])), // rien à relire : tout est local
     list: async (col) => structuredClone(db[col]),
     add: async (col, obj) => {
       const ligne = { id: crypto.randomUUID(), ...nettoyer(col, obj) };
