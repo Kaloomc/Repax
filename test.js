@@ -5,6 +5,7 @@ const { lireLigne, tarifs, analyserRecette, PRODUITS, definirSynonymes } = requi
 const { planifier, prendre, classer, creneauxAVenir, lundi, lieuDe, cleCreneau, raisonsExclusion, difficulteDe, difficulteLisible, preparerEcritures, verifierEcritures } = require('./planning');
 const { prixUnitaires } = require('./prix');
 const { lireRecette } = require('./marmiton');
+const { construire, routeWidget, limiteur, isoParis } = require('./widget');
 
 test('lecture des lignes de recette', () => {
   const cas = [
@@ -324,4 +325,148 @@ test('présence : une ligne « Angoulême » n’est pas une absence', () => {
   const lignes = [{ du: '2026-11-06', duMoment: 'midi', au: '2026-11-06', auMoment: 'soir', lieu: 'Angoulême', ordre: 1 }];
   assert.strictEqual(lieuDe(lignes, '2026-11-06', 'midi'), 'Angoulême');
   assert.strictEqual(lieuDe(lignes, '2026-11-06', 'soir'), 'Angoulême');
+});
+
+// --- Widget iPhone : GET /api/widget/repas ------------------------------------------------------
+// Le 5 novembre 2026 est en heure d'hiver : 13 h 59 à Paris = 12 h 59 UTC.
+const A = (heure, jour = '2026-11-05') => new Date(`${jour}T${heure}:00+01:00`);
+const instantaneWidget = (extra = {}) => ({
+  quand: A('21:30', '2026-11-04'),
+  planning: [
+    { date: '2026-11-05', moment: 'midi', repas: 'Croque-monsieur et salade', recette: 'r1', cout: 1.756, restes: false, consomme: false, ailleurs: false },
+    { date: '2026-11-05', moment: 'soir', repas: 'Poulet au curry et riz', recette: 'r2', cout: 3.55, restes: false, consomme: false, ailleurs: false },
+    { date: '2026-11-06', moment: 'midi', repas: 'Pâtes', recette: 'r3', cout: 0.9, restes: false, consomme: false, ailleurs: false },
+  ],
+  courses: [],
+  presence: [],
+  recettes: new Map([
+    ['r1', { nom: 'Croque-monsieur et salade', temps: 20, articles: ['Pain de mie', 'Jambon'] }],
+    ['r2', { nom: 'Poulet au curry et riz', temps: 35, articles: ['Filets de poulet', 'Riz', 'Crème fraîche'] }],
+    ['r3', { nom: 'Pâtes', temps: 10, articles: ['Pâtes', 'Pain'] }],
+  ]),
+  ...extra,
+});
+
+test('widget : date et heure ISO à Paris, avec le décalage', () => {
+  assert.strictEqual(isoParis(new Date('2026-11-04T20:30:00Z')), '2026-11-04T21:30:00+01:00');
+  assert.strictEqual(isoParis(new Date('2026-07-14T10:05:09Z')), '2026-07-14T12:05:09+02:00');
+});
+
+test('widget : le bon prochain repas à 13 h 59 et à 14 h 01', () => {
+  const inst = instantaneWidget();
+  const avant = construire(inst, A('13:59'));
+  assert.deepStrictEqual(avant.next, { date: '2026-11-05', moment: 'midi', name: 'Croque-monsieur et salade', minutes: 20, cost: 1.76 });
+  assert.deepStrictEqual(avant.after, { date: '2026-11-05', moment: 'soir', name: 'Poulet au curry et riz', minutes: 35, cost: 3.55 });
+  const apres = construire(inst, A('14:01'));
+  assert.strictEqual(apres.next.moment, 'soir');
+  assert.strictEqual(apres.after.date, '2026-11-06');
+  // Le soir reste le prochain jusqu'à 21 h, puis c'est le lendemain.
+  assert.strictEqual(construire(inst, A('20:59')).next.moment, 'soir');
+  assert.deepStrictEqual([construire(inst, A('21:01')).next.date, construire(inst, A('21:01')).after], ['2026-11-06', null]);
+  assert.strictEqual(avant.updatedAt, '2026-11-04T21:30:00+01:00');
+});
+
+test('widget : un repas consommé, mangé ailleurs ou pendant une absence n\'est jamais le prochain', () => {
+  const inst = instantaneWidget();
+  inst.planning[0].consomme = true; // coché « Consommé » : on passe au suivant même avant 14 h
+  assert.strictEqual(construire(inst, A('09:00')).next.moment, 'soir');
+  inst.planning[1].ailleurs = true;
+  assert.strictEqual(construire(inst, A('09:00')).next.date, '2026-11-06');
+  // Absence « Parents » le 6 : ignoré ; une ligne « Angoulême » n'est pas une absence.
+  const parents = { du: '2026-11-06', duMoment: 'midi', au: '2026-11-06', auMoment: 'soir', lieu: 'Parents', ordre: 1 };
+  assert.strictEqual(construire(inst, A('09:00')).next.date, '2026-11-06');
+  assert.strictEqual(construire({ ...inst, presence: [parents] }, A('09:00')).next, null);
+  const angouleme = { ...parents, lieu: 'Angoulême' };
+  assert.strictEqual(construire({ ...inst, presence: [angouleme] }, A('09:00')).next.date, '2026-11-06');
+  // Rien de planifié.
+  const vide = construire({ ...inst, planning: [] }, A('09:00'));
+  assert.deepStrictEqual([vide.next, vide.after], [null, null]);
+  assert.deepStrictEqual(vide.shopping, { toBuyCount: 0, urgentCount: 0, urgent: [] });
+});
+
+test('widget : courses à acheter et urgentes (aujourd\'hui ou demain, d\'après le planning réel)', () => {
+  const inst = instantaneWidget({
+    courses: [
+      { article: 'Pain de mie', unite: 'kg', achete: false, pour: '2026-11-20' }, // « Pour le » périmé/faux : le planning dit le 5
+      { article: 'Crème fraîche', unite: 'L', achete: false, pour: null },
+      { article: 'Pain', unite: 'pièce', achete: false, pour: '2026-11-06' }, // r3, demain (le 6) à midi
+      { article: 'Riz', unite: 'kg', achete: true, pour: '2026-11-05' }, // déjà acheté
+      { article: 'Poivre', unite: 'placard', achete: false, pour: null }, // placard : ni compté ni urgent
+      { article: 'Papier toilette', unite: null, achete: false, pour: null }, // article libre
+    ],
+  });
+  const j = construire(inst, A('09:00'));
+  assert.strictEqual(j.shopping.toBuyCount, 4);
+  assert.deepStrictEqual(j.shopping.urgent, [
+    { name: 'Crème fraîche', neededOn: '2026-11-05' },
+    { name: 'Pain de mie', neededOn: '2026-11-05' },
+    { name: 'Pain', neededOn: '2026-11-06' },
+  ]);
+  assert.strictEqual(j.shopping.urgentCount, 3);
+  // Un article nécessaire dans 5 jours n'est pas urgent ; 3 éléments au plus dans « urgent ».
+  inst.planning.push({ date: '2026-11-10', moment: 'soir', repas: 'Quiche', recette: 'r4', cout: 2, restes: false, consomme: false, ailleurs: false });
+  inst.recettes.set('r4', { nom: 'Quiche', temps: 40, articles: ['Œufs'] });
+  inst.courses.push({ article: 'Œufs', unite: 'pièce', achete: false, pour: '2026-11-10' });
+  const k = construire(inst, A('09:00')).shopping;
+  assert.strictEqual(k.toBuyCount, 5);
+  assert.ok(!k.urgent.some((x) => x.name === 'Œufs'));
+  inst.courses.push({ article: 'Jambon', unite: 'kg', achete: false, pour: null });
+  const l = construire(inst, A('09:00')).shopping;
+  assert.deepStrictEqual([l.urgentCount, l.urgent.length], [4, 3]);
+  // Plus de repas ce soir-là : « Crème fraîche » (poulet du 5 au soir) n'est plus pour aujourd'hui une fois le repas passé.
+  assert.ok(!construire(inst, A('22:00')).shopping.urgent.some((x) => x.name === 'Crème fraîche'));
+});
+
+test('widget : jeton obligatoire, cache vide, réponse correcte, débit limité', async () => {
+  const express = require('express');
+  const JETON = 'x'.repeat(40);
+  let inst = null;
+  const app = express();
+  app.get('/api/widget/repas', routeWidget({ jeton: JETON, instantane: () => inst, parHeure: 3, echecsParHeure: 2 }));
+  const serveur = await new Promise((ok) => { const s = app.listen(0, '127.0.0.1', () => ok(s)); });
+  const url = `http://127.0.0.1:${serveur.address().port}/api/widget/repas`;
+  const appel = (jeton) => fetch(url, jeton ? { headers: { Authorization: `Bearer ${jeton}` } } : {});
+  try {
+    let r = await appel(null); // jeton absent
+    assert.strictEqual(r.status, 401);
+    assert.strictEqual(await r.text(), '');
+    assert.strictEqual(r.headers.get('cache-control'), 'no-store');
+    r = await appel('y'.repeat(40)); // jeton faux
+    assert.strictEqual(r.status, 401);
+    assert.strictEqual(await r.text(), '');
+    r = await appel(JETON); // cache vide : pas encore d'instantané
+    assert.strictEqual(r.status, 503);
+    inst = instantaneWidget();
+    r = await appel(JETON);
+    assert.strictEqual(r.status, 200);
+    r = await appel(JETON); // 3e requête valide de l'heure (limite fixée à 3 dans ce test) : encore permise
+    assert.strictEqual(r.status, 200);
+    r = await appel(JETON); // 4e : refusée
+    assert.strictEqual(r.status, 429);
+    assert.ok(Number(r.headers.get('retry-after')) > 0);
+    assert.strictEqual(r.headers.get('cache-control'), 'no-store');
+  } finally { serveur.close(); }
+
+  // Forme exacte de la réponse (noms de champs du brief).
+  const app2 = express();
+  const JSON_OK = instantaneWidget();
+  app2.get('/w', routeWidget({ jeton: JETON, instantane: () => JSON_OK }));
+  const s2 = await new Promise((ok) => { const s = app2.listen(0, '127.0.0.1', () => ok(s)); });
+  try {
+    const r = await fetch(`http://127.0.0.1:${s2.address().port}/w`, { headers: { Authorization: `Bearer ${JETON}` } });
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(r.headers.get('cache-control'), 'no-store');
+    const corps = await r.json();
+    assert.deepStrictEqual(Object.keys(corps), ['updatedAt', 'next', 'after', 'shopping']);
+    assert.deepStrictEqual(Object.keys(corps.shopping), ['toBuyCount', 'urgentCount', 'urgent']);
+    assert.deepStrictEqual(Object.keys(corps.next), ['date', 'moment', 'name', 'minutes', 'cost']);
+  } finally { s2.close(); }
+
+  // Trop d'essais ratés depuis la même adresse : 429. Jeton non configuré (ou trop court) : route désactivée.
+  const reglee = routeWidget({ jeton: JETON, instantane: () => null, echecsParHeure: 2 });
+  const faux = () => { const res = { h: {}, setHeader(k, v) { this.h[k] = v; }, status(c) { this.code = c; return this; }, set(k, v) { this.h[k] = v; return this; }, end() { return this; }, json() { return this; } }; reglee({ headers: {}, ip: '1.2.3.4' }, res); return res.code; };
+  assert.deepStrictEqual([faux(), faux(), faux()], [401, 401, 429]);
+  const coupee = (jeton) => { let code; routeWidget({ jeton, instantane: () => null })({ headers: { authorization: 'Bearer abc' }, ip: 'x' }, { setHeader() {}, status(c) { code = c; return this; }, end() {} }); return code; };
+  assert.deepStrictEqual([coupee(undefined), coupee('court')], [404, 404]);
+  assert.strictEqual(limiteur(1, 1000)('a', 0), 0);
 });

@@ -18,6 +18,8 @@ services:
       - NOTION_PAGE_ID=
       # Mot de passe demandé une fois sur chaque téléphone (fortement conseillé : l'appli est sur Internet)
       - APP_PASSWORD=
+      # Jeton du widget iPhone (32 caractères au moins, aléatoire ; vide = widget désactivé). Voir README, « Widget iPhone »
+      - WIDGET_TOKEN=
     volumes:
       - ./app:/app
     working_dir: /app

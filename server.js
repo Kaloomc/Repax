@@ -10,6 +10,7 @@ const {
   lundi, ajouterJours, aujourdhui, budgetSemaine, lieuDe, cleCreneau,
   raisonsExclusion, difficulteDe, difficulteLisible, EXCLUSIONS_DEFAUT, preparerEcritures, verifierEcritures,
 } = require('./planning');
+const { routeWidget } = require('./widget');
 
 const app = express();
 app.set('trust proxy', 1); // derrière le proxy inversé du NAS
@@ -32,6 +33,10 @@ app.post('/api/connexion', async (req, res) => {
   res.setHeader('Set-Cookie', `repas=${jeton}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax${req.secure ? '; Secure' : ''}`);
   res.json({ ok: true });
 });
+
+// Widget iPhone (Scriptable) : lecture seule, protégé par son propre jeton (WIDGET_TOKEN, en-tête Authorization: Bearer),
+// donc placé avant la connexion par mot de passe/cookie. Ne lit jamais Notion : voir widget.js et majWidget().
+app.get('/api/widget/repas', routeWidget({ jeton: process.env.WIDGET_TOKEN, instantane: () => instantaneWidget }));
 
 app.use('/api', (req, res, next) => {
   if (!MOT_DE_PASSE || req.path === '/etat') return next();
@@ -102,6 +107,25 @@ async function presence() {
   }
 }
 
+// Instantané pour le widget : copie en mémoire de ce que l'appli sait déjà (planning, courses, présence, recettes).
+// Remis à jour par le mode automatique et par les écrans ; la route du widget ne lit que lui, jamais Notion.
+let instantaneWidget = null;
+async function majWidget() {
+  try {
+    const [planning, courses, { recettes, analyses }] = await Promise.all([store.list('planning'), store.list('courses'), contexte()]);
+    const lignesPresence = await store.list('presence').catch(() => instantaneWidget?.presence ?? []); // illisible : on garde la dernière
+    instantaneWidget = {
+      quand: new Date(),
+      planning: planning.map((p) => ({ date: p.date, moment: p.moment, repas: p.repas, recette: p.recette, cout: p.cout, restes: !!p.restes, consomme: !!p.consomme, ailleurs: !!p.ailleurs })),
+      courses: courses.map((c) => ({ article: c.article, unite: c.unite, achete: !!c.achete, pour: c.pour })),
+      presence: lignesPresence,
+      recettes: new Map(recettes.map((r) => [r.id, { nom: r.nom, temps: r.temps ?? null, articles: analyses.get(r.id).lignes.filter((l) => !l.placard).map((l) => l.nom) }])),
+    };
+  } catch (err) {
+    console.error('Widget :', err.message); // l'ancien instantané reste servi
+  }
+}
+
 // Vérifie qu'une ligne appartient bien à la base avant de la modifier.
 async function trouver(col, id) {
   const ligne = (await store.list(col)).find((x) => x.id === id);
@@ -149,6 +173,7 @@ app.get('/api/etat', (req, res) => {
 const A_RAFRAICHIR = ['presence', 'coursesPayees', 'planning', 'courses', 'stock', 'depenses'];
 app.post('/api/notion/rafraichir', async (req, res) => {
   const erreurs = await enSerie(() => store.rafraichir(A_RAFRAICHIR));
+  await majWidget();
   const echecs = Object.entries(erreurs).filter(([, e]) => e).map(([col, message]) => ({ base: store.SCHEMAS[col].titre, message }));
   res.json({ mode: store.mode, ok: !echecs.length, echecs });
 });
@@ -304,6 +329,7 @@ async function vue() {
   const liste = courses
     .map((c) => ({ ...c, rayon: c.unite === 'placard' ? 'Placard' : rayonDe(c.article) }))
     .sort((a, b) => a.rayon.localeCompare(b.rayon, 'fr') || a.article.localeCompare(b.article, 'fr'));
+  majWidget(); // sans attendre
   const creneaux = creneauxAVenir(regl.repas, m);
   const { lieu, erreur } = await presence();
   return {
@@ -596,6 +622,7 @@ function automatique() {
     await consommerPasses();
     if (recettes.length) await proposer({ completer: true });
     await completerRecettes();
+    await majWidget();
   }).then(
     () => Object.assign(etatAuto, { dernier: new Date().toISOString(), erreur: null }),
     (err) => {
@@ -637,6 +664,7 @@ app.patch('/api/courses/:id', async (req, res) => {
     if (achete && !lies.length) await ajouterAuPlacard(c, e);
     if (!achete) for (const s of lies) await store.remove('stock', s.id);
   });
+  majWidget(); // le compteur de courses du widget suit les cases cochées
   res.json({ ok: true });
 });
 

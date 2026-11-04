@@ -103,6 +103,43 @@ Les trois applis ne se parlent pas directement : elles partagent **la même page
 - **Argenx** lit « Liste de courses » et « Planning des repas » pour afficher les courses prévues.
 - En mode démo (sans Notion), Repax fonctionne seul.
 
+## Widget iPhone (Scriptable)
+
+`GET /api/widget/repas` renvoie, en lecture seule, de quoi remplir un widget d'écran d'accueil : le prochain repas, celui d'après et les courses à faire. Il ne lit **jamais Notion** : il répond avec ce que l'appli a déjà en mémoire (rafraîchi toutes les 10 minutes par le mode automatique et à chaque action), donc une réponse en quelques millisecondes et aucun quota Notion consommé. Seul « le prochain repas » est recalculé à l'heure de la requête : le midi reste le prochain jusqu'à 14 h, le soir jusqu'à 21 h, tant qu'il n'est pas coché `Consommé` ; un repas mangé ailleurs ou pendant une absence (base « Présence » : « Parents », « Ailleurs » ; « Angoulême » n'est pas une absence) est ignoré.
+
+**Protection** : un jeton propre au widget, indépendant du mot de passe de l'appli. Sans lui, la route répond `404` (désactivée) ; avec un jeton absent ou faux, `401` sans corps ; au-delà de 60 requêtes par heure, `429` (et 20 jetons faux par heure et par adresse). Pour le changer ou le révoquer, modifie `WIDGET_TOKEN` et redémarre : l'ancien cesse aussitôt de marcher.
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"   # génère un jeton
+```
+
+Mets-le dans `WIDGET_TOKEN` (voir `docker-compose.yml`). L'adresse doit être en **HTTPS** (le jeton circule dans l'en-tête), joignable depuis Internet comme le reste de l'appli : `https://teranga-nas.synology.me:8444/api/widget/repas`.
+
+```bash
+curl -H "Authorization: Bearer <jeton>" https://teranga-nas.synology.me:8444/api/widget/repas
+```
+
+```json
+{
+  "updatedAt": "2026-11-04T21:30:00+01:00",
+  "next":  { "date": "2026-11-05", "moment": "midi", "name": "Croque-monsieur et salade", "minutes": 20, "cost": 1.76 },
+  "after": { "date": "2026-11-05", "moment": "soir", "name": "Poulet au curry et riz", "minutes": 35, "cost": 3.55 },
+  "shopping": { "toBuyCount": 8, "urgentCount": 2, "urgent": [ { "name": "Pain", "neededOn": "2026-11-05" } ] }
+}
+```
+
+- `updatedAt` : moment du dernier instantané, heure de Paris. `503` juste après un redémarrage, le temps du premier passage (quelques secondes).
+- `next` / `after` : `null` s'il n'y a rien de planifié. `after` est le repas planifié qui suit `next`. `minutes` est `null` pour un repas noté à la main (sans recette).
+- `toBuyCount` : articles non cochés « Acheté », hors « placard » (sel, poivre…).
+- `urgent` : au plus 3 articles dont le premier repas qui les utilise (d'après le planning réel, pas la colonne « Pour le » qui peut être périmée) est aujourd'hui ou demain, triés par date puis par nom ; `urgentCount` en donne le total.
+
+**Installation sur l'iPhone** (appli gratuite Scriptable) :
+
+1. Dans Scriptable, crée un script, colle le contenu du fichier `widget-repas.js` et renseigne `BASE_URL` et `TOKEN` en haut.
+2. Lance le script une fois pour voir l'aperçu.
+3. Sur l'écran d'accueil : appui long, « + », Scriptable, choisis le script. Les tailles petite, moyenne et grande, et les accessoires de l'écran verrouillé, sont pris en charge.
+4. Un appui sur le widget ouvre l'appli.
+
 ## Marmiton : à savoir
 
 Marmiton n'a **pas d'API officielle**. L'appli lit les pages publiques avec parcimonie : une requête toutes les 3 secondes, un user-agent qui dit qui elle est, la première page de recherche seulement (comme le demande leur `robots.txt`), recherches gardées 24 h, et chaque recette est enregistrée pour ne jamais redemander la même page.
@@ -118,6 +155,7 @@ Variables d'environnement (jamais dans le dépôt) :
 | `NOTION_TOKEN` | Jeton de ton intégration Notion. Vide = mode démo |
 | `NOTION_PAGE_ID` | Page Notion qui accueille les bases (la même pour Repax, Agendix et Argenx) |
 | `APP_PASSWORD` | Mot de passe de l'appli (conseillé dès qu'elle est sur Internet) |
+| `WIDGET_TOKEN` | Jeton du widget iPhone (32 caractères au moins). Vide = widget désactivé |
 | `PORT` | Port du serveur (3011 par défaut) |
 
 Au premier lancement avec Notion, l'appli **crée elle-même les 6 bases** (et ajoute les colonnes qui manquent après une mise à jour) dans la page (si elles n'y sont pas déjà), et ajoute les recettes d'exemple :
@@ -152,6 +190,7 @@ Sur le NAS Synology, comme le jeu Gorgée : `docker-compose.yml` à coller dans 
 | `prix.js` | Récupération des prix Open Prices |
 | `marmiton.js` | Recherche et lecture des recettes Marmiton |
 | `planning.js` | Choix des repas sur 7 jours, achat par paquets, placard, type de plat |
+| `widget.js` | Route du widget iPhone : jeton, débit, calcul du prochain repas et des courses urgentes |
 | `demo-recettes.json` | Recettes d'exemple |
 | `public/` | Interface (HTML, CSS, JS), manifest PWA, service worker, icônes |
 | `test.js` | Tests (`npm test`) |
