@@ -77,7 +77,7 @@ const empreinte = (s) => crypto.createHash('sha256').update(String(s)).digest();
 
 // Route Express. `jeton` : WIDGET_TOKEN (au moins 32 caractères, sinon la route est désactivée) ;
 // `instantane()` : dernier état en mémoire (ou null s'il n'y en a pas encore).
-function routeWidget({ jeton, instantane, parHeure = 60, echecsParHeure = 20 }) {
+function routeWidget({ jeton, instantane, parHeure = 60, echecsParHeure = 20, maintenant = () => new Date() }) {
   const actif = typeof jeton === 'string' && jeton.length >= 32;
   const attendu = actif && empreinte(jeton);
   const limiteReussites = limiteur(parHeure, 3600e3);
@@ -95,7 +95,7 @@ function routeWidget({ jeton, instantane, parHeure = 60, echecsParHeure = 20 }) 
     if (attente) return res.status(429).set('Retry-After', String(attente)).json({ erreur: 'Trop de requêtes' });
     const inst = instantane();
     if (!inst) return res.status(503).set('Retry-After', '30').json({ erreur: "Pas encore de données : l'appli vient de démarrer" });
-    res.json(construire(inst));
+    res.json(construire(inst, maintenant()));
   };
 }
 

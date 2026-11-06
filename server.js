@@ -8,9 +8,10 @@ const { CATALOGUE, PRODUITS, SOURCES, tarifs, analyserRecette, definirSynonymes,
 const {
   planifier, prendre, classer, TYPES, creneauxAVenir, estPasse, maintenantParis,
   lundi, ajouterJours, aujourdhui, budgetSemaine, lieuDe, cleCreneau,
-  raisonsExclusion, difficulteDe, difficulteLisible, EXCLUSIONS_DEFAUT, preparerEcritures, verifierEcritures,
+  raisonsExclusion, difficulteDe, difficulteLisible, EXCLUSIONS_DEFAUT, EXCLUSIONS_ANCIEN_DEFAUT, preparerEcritures, verifierEcritures,
 } = require('./planning');
 const { routeWidget } = require('./widget');
+const { echelle, echelleEtape, libelleAchat } = require('./quantites');
 
 const app = express();
 app.set('trust proxy', 1); // derrière le proxy inversé du NAS
@@ -231,7 +232,16 @@ app.get('/api/recettes/:id', async (req, res) => {
   const { recettes, analyses } = await contexte();
   const r = recettes.find((x) => x.id === req.params.id);
   verifier(r, 'Recette introuvable (supprimée ?)');
-  res.json(resumeRecette(r, analyses.get(r.id)));
+  const fiche = resumeRecette(r, analyses.get(r.id));
+  // ?portions=N : ingrédients et étapes réécrits pour N personnes, en unités naturelles (voir quantites.js).
+  const portions = Number(req.query.portions);
+  if (portions > 0 && portions <= 50) {
+    const facteur = portions / fiche.portions;
+    fiche.pour = portions;
+    fiche.lignes = fiche.lignes.map((l) => ({ ...l, texte: echelle(l.brut, facteur) }));
+    fiche.etapes = fiche.etapes.split('\n').map((e) => echelleEtape(e, facteur, fiche.lignes.map((l) => l.brut), portions)).join('\n');
+  }
+  res.json(fiche);
 });
 
 app.get('/api/marmiton', async (req, res) => {
@@ -255,6 +265,22 @@ app.post('/api/recettes', async (req, res) => {
   const ligne = await store.add('recettes', { ...r, difficulte: difficulteLisible(r.difficulte) || null, type, cout: arrondi(a.cout), coutPortion: arrondi(a.coutPortion), dateRecup: aujourdhui() });
   declencher();
   res.json({ id: ligne.id, nom: ligne.nom, type });
+});
+
+// Recettes d'exemple (demo-recettes.json) : ajoute celles qui manquent, sans toucher aux autres. Les ingrédients sont
+// ceux du catalogue (donc chiffrés) ; les plats que je n'aime pas ou qui demandent un four restent marqués « jamais proposée ».
+app.post('/api/recettes/exemples', async (req, res) => {
+  const { recettes, t } = await contexte();
+  const connues = new Set(recettes.map((r) => norm(r.nom)));
+  const aAjouter = require('./demo-recettes.json').filter((r) => !connues.has(norm(r.nom)));
+  for (const r of aAjouter) {
+    const a = analyserRecette(r, t);
+    await store.add('recettes', {
+      ...r, difficulte: difficulteDe(nbIngredients(a), r.etapes), cout: arrondi(a.cout), coutPortion: arrondi(a.coutPortion), dateRecup: aujourdhui(),
+    });
+  }
+  if (aAjouter.length) declencher();
+  res.json({ ajoutees: aAjouter.length });
 });
 
 app.patch('/api/recettes/:id', async (req, res) => {
@@ -327,7 +353,7 @@ async function vue() {
       };
     });
   const liste = courses
-    .map((c) => ({ ...c, rayon: c.unite === 'placard' ? 'Placard' : rayonDe(c.article) }))
+    .map((c) => ({ ...c, rayon: c.unite === 'placard' ? 'Placard' : rayonDe(c.article), precis: libelleAchat(PRODUITS.get(c.article), c.quantite) }))
     .sort((a, b) => a.rayon.localeCompare(b.rayon, 'fr') || a.article.localeCompare(b.article, 'fr'));
   majWidget(); // sans attendre
   const creneaux = creneauxAVenir(regl.repas, m);
@@ -538,20 +564,52 @@ app.post('/api/semaine/annuler', async (req, res) => {
 });
 
 // ➕ Ajouter une recette au planning, à un repas donné : elle y est 📌 gardée.
+// Les courses et le budget sont recalculés tout de suite (les autres créneaux ne bougent pas).
 app.post('/api/planning', async (req, res) => {
   const { recette, date, moment } = req.body ?? {};
   verifier(/^\d{4}-\d{2}-\d{2}$/.test(date || '') && ['midi', 'soir'].includes(moment), 'Repas invalide');
   verifier(!estPasse(date, moment, maintenantParis()), 'Ce repas est déjà passé');
   await enSerie(async () => {
-    const [r, regl, planning] = await Promise.all([trouver('recettes', recette), reglages(), store.list('planning')]);
+    const planning = await relirePlanning(); // Notion tel qu'il est maintenant : le choix ne doit pas écraser une modif récente
+    const [r, regl] = await Promise.all([trouver('recettes', recette), reglages()]);
     const ligne = { repas: r.nom, date, moment, recette: r.id, portions: regl.personnes, restes: false, garde: true, ailleurs: false, consomme: false };
     const existant = planning.find((p) => p.date === date && p.moment === moment && !p.consomme);
     verifier(!planning.some((p) => p.date === date && p.moment === moment && p.consomme), 'Ce repas est déjà mangé');
     if (existant) await store.update('planning', existant.id, ligne);
     else await store.add('planning', ligne);
+    await proposer({ completer: true });
   });
-  declencher();
   res.json({ ok: true });
+});
+
+// 🔀 Décaler un repas à un autre créneau, ou l'échanger avec celui qui s'y trouve. Les deux repas restent 📌 gardés
+// (une proposition ne les défait pas) ; un créneau laissé vide est rempli et la liste de courses refaite.
+// Les lignes sont modifiées sur place dans Notion, jamais supprimées ni recréées.
+app.post('/api/planning/deplacer', async (req, res) => {
+  const { id, date, moment } = req.body ?? {};
+  verifier(/^\d{4}-\d{2}-\d{2}$/.test(date || '') && ['midi', 'soir'].includes(moment), 'Repas invalide');
+  const m = maintenantParis();
+  verifier(!estPasse(date, moment, m) && date <= ajouterJours(m.date, 14), 'Ce repas est déjà passé ou trop loin');
+  let echange = false;
+  await enSerie(async () => {
+    const planning = await relirePlanning();
+    const p = planning.find((x) => x.id === id);
+    verifier(p, 'Repas introuvable');
+    verifier(!p.consomme && !estPasse(p.date, p.moment, m), 'Ce repas est déjà passé');
+    verifier(!p.restes, 'Les restes suivent le plat de la veille : déplace plutôt le plat du soir');
+    verifier(p.date !== date || p.moment !== moment, 'Il est déjà à ce repas');
+    verifier((await presence()).lieu({ date, moment }) === 'Angoulême', "Tu n'es pas à Angoulême à ce repas");
+    const autres = planning.filter((x) => x.id !== p.id && x.date === date && x.moment === moment);
+    verifier(!autres.some((x) => x.consomme), 'Ce repas est déjà mangé');
+    const autre = autres[0];
+    verifier(!autre?.restes, 'Ce repas est un reste du plat de la veille : il ne peut pas être échangé');
+    const epingle = (x) => (x.recette && !x.ailleurs ? { garde: true } : {});
+    await store.update('planning', p.id, { date, moment, ...epingle(p) });
+    if (autre) await store.update('planning', autre.id, { date: p.date, moment: p.moment, ...epingle(autre) });
+    echange = !!autre;
+    await proposer({ completer: true });
+  });
+  res.json({ ok: true, echange });
 });
 
 // 🛒 Article libre dans la liste (« papier toilette ») : jamais touché par le planning automatique.
@@ -611,17 +669,36 @@ async function completerRecettes() {
   }
 }
 
+// Recettes Marmiton importées sans photo (avant l'ajout de la colonne Image) : on relit leur page, une seule par passage
+// (toutes les 10 minutes au plus, via la file de 3 secondes de marmiton.js), et une seule fois par recette et par démarrage.
+const imagesEssayees = new Set();
+async function completerImages() {
+  const r = (await store.list('recettes')).find((x) => x.url && !x.image && !imagesEssayees.has(x.id) && marmiton.URL_RECETTE.test(x.url));
+  if (!r) return;
+  imagesEssayees.add(r.id);
+  try {
+    const page = await marmiton.recuperer(r.url);
+    if (page.image) await store.update('recettes', r.id, { image: page.image });
+  } catch (err) {
+    console.error(`Photo de « ${r.nom} » :`, err.message);
+  }
+}
+
 function automatique() {
   return enSerie(async () => {
     await relire();
     // Première fois : les contraintes connues (seul, une poêle et une casserole, pas d'omelette…).
     const r = (await store.list('depenses')).find((d) => d.type === 'Budget');
     if (r && !r.exclusions && !r.sansFour) await store.update('depenses', r.id, { exclusions: EXCLUSIONS_DEFAUT, sansFour: true });
+    // « Lentilles, dal » ajoutés aux plats jamais proposés, mais seulement si le réglage est encore celui d'origine
+    // (jamais écrasé s'il a été modifié à la main : il se complète alors dans Réglages → Je n'aime pas).
+    else if (r && r.exclusions === EXCLUSIONS_ANCIEN_DEFAUT) await store.update('depenses', r.id, { exclusions: EXCLUSIONS_DEFAUT });
     const { recettes } = await contexte(); // charge aussi les synonymes
     await rangerPlacard();
     await consommerPasses();
     if (recettes.length) await proposer({ completer: true });
     await completerRecettes();
+    await completerImages();
     await majWidget();
   }).then(
     () => Object.assign(etatAuto, { dernier: new Date().toISOString(), erreur: null }),

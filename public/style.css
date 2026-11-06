@@ -350,6 +350,7 @@ dialog::backdrop { background: var(--voile); }
 ol.etapes { margin: 0; padding-left: 1.4em; display: grid; gap: var(--e2); }
 .meta-ligne { display: flex; flex-wrap: wrap; gap: var(--e2); }
 .illustration { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--r-champ); background: var(--surface-2); }
+.illustration.vide { display: grid; place-items: center; font-size: 56px; aspect-ratio: 21 / 9; }
 
 /* ==========================================================================
    Semaine

@@ -2,10 +2,12 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { lireLigne, tarifs, analyserRecette, PRODUITS, definirSynonymes } = require('./ingredients');
+const { EXCLUSIONS_DEFAUT } = require('./planning');
 const { planifier, prendre, classer, creneauxAVenir, lundi, lieuDe, cleCreneau, raisonsExclusion, difficulteDe, difficulteLisible, preparerEcritures, verifierEcritures } = require('./planning');
 const { prixUnitaires } = require('./prix');
 const { lireRecette } = require('./marmiton');
 const { construire, routeWidget, limiteur, isoParis } = require('./widget');
+const { echelle, echelleEtape, libelleAchat } = require('./quantites');
 
 test('lecture des lignes de recette', () => {
   const cas = [
@@ -450,7 +452,7 @@ test('widget : jeton obligatoire, cache vide, réponse correcte, débit limité'
   // Forme exacte de la réponse (noms de champs du brief).
   const app2 = express();
   const JSON_OK = instantaneWidget();
-  app2.get('/w', routeWidget({ jeton: JETON, instantane: () => JSON_OK }));
+  app2.get('/w', routeWidget({ jeton: JETON, instantane: () => JSON_OK, maintenant: () => A('09:00') }));
   const s2 = await new Promise((ok) => { const s = app2.listen(0, '127.0.0.1', () => ok(s)); });
   try {
     const r = await fetch(`http://127.0.0.1:${s2.address().port}/w`, { headers: { Authorization: `Bearer ${JETON}` } });
@@ -469,4 +471,76 @@ test('widget : jeton obligatoire, cache vide, réponse correcte, débit limité'
   const coupee = (jeton) => { let code; routeWidget({ jeton, instantane: () => null })({ headers: { authorization: 'Bearer abc' }, ip: 'x' }, { setHeader() {}, status(c) { code = c; return this; }, end() {} }); return code; };
   assert.deepStrictEqual([coupee(undefined), coupee('court')], [404, 404]);
   assert.strictEqual(limiteur(1, 1000)('a', 0), 0);
+});
+
+// --- Quantités naturelles --------------------------------------------------------------------------------------
+test('recette pour moins de monde : pièces, cuillères et grammes restent dans leur unité', () => {
+  const cas = [
+    ['2 tomates', 0.5, '1 tomate'], // pas « 120 g de tomates »
+    ['2 tomates', 0.25, '½ tomate'],
+    ['6 tomates', 0.5, '3 tomates'],
+    ['400 g de spaghetti', 0.25, '100 g de spaghetti'],
+    ['200g de lentilles', 0.25, '50 g de lentilles'],
+    ['1 boîte de tomates concassées', 0.25, '¼ boîte de tomates concassées'],
+    ["2 gousses d'ail", 0.25, "1 gousse d'ail"],
+    ["2 cuillères à soupe d'huile d'olive", 0.25, "½ cuillère à soupe d'huile d'olive"],
+    ['1 c. à s. de moutarde', 0.5, '½ cuillère à soupe de moutarde'],
+    ['2 c. à café de cumin', 0.25, '½ cuillère à café de cumin'],
+    ['3 oignons émincés', 1 / 3, '1 oignon émincé'],
+    ['4 œufs', 0.25, '1 œuf'],
+    ['4 œufs', 0.5, '2 œufs'],
+    ['4 blancs de poulet', 0.25, '1 blanc de poulet'],
+    ['3 pommes de terre', 0.25, '1 pomme de terre'],
+    ['1 kg de pommes de terre', 0.25, '250 g de pommes de terre'],
+    ['20 cl de crème fraîche', 0.5, '10 cl de crème fraîche'],
+    ['1/2 citron', 2, '1 citron'],
+    ['1 oignon', 2, '2 oignons'],
+    ['1 kg de pommes de terre', 1.5, '1,5 kg de pommes de terre'],
+    ['2 tranches de jambon', 0.25, '1 tranche de jambon'],
+    ['sel', 0.5, 'sel'],
+    ["huile d'olive", 0.5, "huile d'olive"],
+    ['1 poulet coupé en 6 morceaux', 1, '1 poulet coupé en 6 morceaux'],
+  ];
+  for (const [ligne, facteur, attendu] of cas) assert.strictEqual(echelle(ligne, facteur), attendu, `${ligne} ×${facteur}`);
+});
+
+test('étapes réécrites avec les mêmes quantités, durées et températures intactes', () => {
+  const lignes = ['400 g de lentilles', '2 tomates', '1 oignon', '2 cuillères à soupe de moutarde'];
+  const e = echelleEtape("Faites cuire 400 g de lentilles 20 minutes dans 1 litre d'eau. Coupez les 2 tomates, ajoutez 2 cuillères à soupe de moutarde. Four à 180 °C, pour 4 personnes.", 0.25, lignes, 1);
+  assert.strictEqual(e, "Faites cuire 100 g de lentilles 20 minutes dans 25 cl d'eau. Coupez ½ tomate, ajoutez ½ cuillère à soupe de moutarde. Four à 180 °C, pour 1 personne.");
+  assert.strictEqual(echelleEtape('1. Mélangez 2 œufs.', 1, ['2 œufs'], 4), '1. Mélangez 2 œufs.');
+});
+
+test('liste de courses : ce qui se compte à la pièce s’affiche à la pièce', () => {
+  const nom = (n) => PRODUITS.get(n);
+  assert.strictEqual(libelleAchat(nom('Tomates'), 0.36), '3 tomates (≈ 360 g)');
+  assert.strictEqual(libelleAchat(nom('Tomates'), 0.12), '1 tomate (≈ 120 g)');
+  assert.strictEqual(libelleAchat(nom('Œufs'), 6), '6 œufs');
+  assert.strictEqual(libelleAchat(nom('Œufs'), 1), '1 œuf');
+  assert.strictEqual(libelleAchat(nom('Pâtes'), 0.5), null); // au poids : affichage habituel
+});
+
+test('« je n’aime pas » : lentilles et dal écartés, pas les autres légumineuses', () => {
+  const lignes = (...l) => l.map((brut) => ({ detail: lireLigne(brut).detail }));
+  const cas = (nom, ...ing) => raisonsExclusion({ nom }, lignes(...ing), { exclusions: EXCLUSIONS_DEFAUT, sansFour: false });
+  assert.ok(cas('Lentilles à la moutarde', '200 g de lentilles vertes').length);
+  assert.ok(cas('Dal de lentilles corail', '200 g de lentilles corail').length);
+  assert.ok(cas('Dahl express', '1 oignon').length); // le nom suffit
+  assert.ok(cas('Curry vert', '200 g de lentilles').length); // ou un ingrédient
+  assert.deepStrictEqual(cas('Curry de pois chiches', '1 boîte de pois chiches', '1 oignon'), []);
+  assert.deepStrictEqual(cas('Chili', '1 boîte de haricots rouges', '400 g de bœuf haché'), []);
+  assert.deepStrictEqual(cas('Salade de dalles', '1 salade').length, 0); // « dal » ne veut pas dire n'importe quel mot qui commence par dal
+});
+
+test('recettes d’exemple : toutes chiffrées, avec étapes, sans four ni plats exclus', () => {
+  const t = tarifs([]);
+  const exemples = require('./demo-recettes.json');
+  assert.ok(exemples.length >= 40);
+  assert.ok(!exemples.some((r) => /lentille|dal\b|dahl/i.test(r.nom + r.ingredients)), 'pas de lentilles dans les recettes d’exemple');
+  for (const r of exemples) {
+    const a = analyserRecette(r, t);
+    assert.deepStrictEqual(a.lignes.filter((l) => l.inconnu).map((l) => l.brut), [], r.nom);
+    if (r.etapes) assert.deepStrictEqual(raisonsExclusion(r, a.lignes, { exclusions: EXCLUSIONS_DEFAUT, sansFour: true }), [], r.nom);
+    if (r.etapes) assert.ok(a.coutPortion < 3, `${r.nom} : ${a.coutPortion.toFixed(2)} € la portion`);
+  }
 });

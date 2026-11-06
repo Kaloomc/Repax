@@ -53,12 +53,18 @@ function classer(nom, nbIngredients, difficulte = '', typeMarmiton = '') {
 }
 
 // --- Ce que je n'aime pas / ce que je n'ai pas -----------------------------------
-const EXCLUSIONS_DEFAUT = 'omelette, soupe, velouté, fruits de mer';
+const EXCLUSIONS_DEFAUT = 'omelette, soupe, velouté, fruits de mer, lentilles, dal';
+// Réglage d'avant l'ajout de « lentilles, dal » : remplacé tel quel (voir automatique() dans server.js).
+const EXCLUSIONS_ANCIEN_DEFAUT = 'omelette, soupe, velouté, fruits de mer';
 // Un mot qui désigne toute une famille d'ingrédients.
 const FAMILLES = {
   'fruits de mer': ['fruits de mer', 'crevette', 'gambas', 'moule', 'calamar', 'encornet', 'saint jacques', 'coquille saint',
     'crabe', 'homard', 'langouste', 'huitre', 'poulpe', 'seiche', 'bulot', 'palourde', 'coque', 'surimi'],
   soupe: ['soupe', 'potage'],
+  // Pas de lentilles ni de dal (le plat indien aux lentilles : dal, dahl, daal, dhal). Les autres légumineuses
+  // (pois chiches, haricots secs, pois cassés…) restent permises tant qu'on ne les écrit pas ici.
+  lentilles: ['lentille', 'dal ', 'dahl ', 'daal ', 'dhal '], // l'espace final : le mot entier, pas « dalle »
+  dal: ['lentille', 'dal ', 'dahl ', 'daal ', 'dhal '],
 };
 // Plats qui demandent un four (dans le nom ou les étapes).
 const FOUR = /(^| )(four|fours|enfourn\w*|prechauff\w*|thermostat|gratin\w*|tarte|tartes|quiche|lasagnes?|clafoutis|cake|pizza|roti|feuillete|parmentier|moussaka|crumble|souffle|muffins?|brownie)( |$)/;
@@ -299,5 +305,5 @@ module.exports = {
   preparerEcritures, verifierEcritures, pareil,
   planifier, prendre, classer, TYPES, creneauxAVenir, estPasse, maintenantParis,
   lundi, ajouterJours, aujourdhui, budgetSemaine, lieuDe, cleCreneau,
-  raisonsExclusion, difficulteDe, difficulteLisible, EXCLUSIONS_DEFAUT,
+  raisonsExclusion, difficulteDe, difficulteLisible, EXCLUSIONS_DEFAUT, EXCLUSIONS_ANCIEN_DEFAUT,
 };

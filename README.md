@@ -28,13 +28,19 @@ Puis ouvrir http://localhost:3011. Tests : `npm test`.
 
 | Onglet | Ce qu'on y fait |
 |---|---|
-| Semaine | Jauge « reste sur le budget » (verte, orange au-delà de 80 %, rouge si dépassé), puis les repas jour par jour (« Aujourd'hui », « Demain »…, total du jour). Les repas d'aujourd'hui restent affichés toute la journée. Toucher un repas ouvre sa **fiche** ; le bouton « ⋯ » donne les actions avec leur libellé : épingler, remplacer, mangé ailleurs. « Proposer d'autres repas » et « Remplacer » peuvent être **annulés** (toast) |
+| Semaine | Jauge « reste sur le budget » (verte, orange au-delà de 80 %, rouge si dépassé), puis les repas jour par jour (« Aujourd'hui », « Demain »…, total du jour). Les repas d'aujourd'hui restent affichés toute la journée. Toucher un repas ouvre sa **fiche** ; le bouton « ⋯ » donne les actions avec leur libellé : épingler, remplacer, **choisir une autre recette**, **décaler ou échanger** (déplacer le repas à un autre créneau, ou l'échanger avec celui qui s'y trouve), mangé ailleurs. « Proposer d'autres repas » et « Remplacer » peuvent être **annulés** (toast) |
 | Courses | « Reste à acheter », « Déjà pris », articles cochés ; liste par rayon (ordre du Super U) ou par jour ; grande case ronde, les articles cochés descendent dans « Dans le panier ». Mode magasin (gros texte, écran allumé), partage de la liste, article libre, placard repliable |
 | Recettes | Recherche Marmiton (ou lien collé → « Importer cette recette »), filtres Faisable chez moi / Rapide / Végé / Pas cher / Avec mon stock / Favoris, ⭐ favoris, « À vérifier » ; les recettes impossibles (four, je n'aime pas) sont repliées dans « Non réalisables » |
 | Prix | Liste cherchable, source et date de chaque prix, « ≈ » pour une estimation, alerte « Ancien » après 60 jours, mon prix dans une feuille |
 | Budget | Reste / payé sur la période, 8 dernières semaines (prévu, payé, budget), projection de fin de mois, dépenses, réglages |
 
-La **fiche recette** (feuille qui monte du bas) montre la photo, la durée, la difficulté, le coût par portion, les ingrédients avec **tes** quantités et les étapes, avec « Mode cuisine » (une étape par écran, texte grand, écran allumé) et « Ajouter au planning » (le repas choisi est remplacé et épinglé).
+La **fiche recette** (feuille qui monte du bas) montre la photo, la durée, la difficulté, le coût par portion, les ingrédients et les étapes **réécrits pour ton nombre de personnes** (voir plus bas), avec « Mode cuisine » (une étape par écran, texte grand, écran allumé) et « Ajouter au planning » (le repas choisi est remplacé et épinglé).
+
+Sans photo (recette d'exemple, saisie à la main, ou photo qui ne charge pas), un emoji choisi d'après le nom du plat prend la place : jamais d'image cassée. Les photos sont celles de Marmiton, **chargées par leur lien direct à la demande** : rien n'est copié ni stocké ici, mais elles ne s'affichent pas hors ligne. Les recettes Marmiton importées avant l'ajout des photos les récupèrent au fil du mode automatique, une page toutes les 10 minutes au plus.
+
+### Quantités pour ton nombre de personnes
+
+`quantites.js` réécrit chaque ligne et chaque étape par règles (pas d'IA) : l'unité de la recette est gardée et seul le nombre change, arrondi comme en cuisine. « 2 tomates » pour 4 devient **« ½ tomate »** pour 1, jamais « 60 g de tomates » ; « 400 g de spaghetti » devient 100 g ; « 2 gousses d'ail » une gousse ; « 1 boîte de tomates concassées » ¼ de boîte ; les œufs et les tranches restent entiers. Les nombres suivis d'une unité ou du nom d'un ingrédient dans les étapes suivent (« 20 minutes » et « 180 °C » ne bougent pas). **Approximatif** : on lit le début de la ligne (« 3 oignons émincés »), pas la phrase ; les accords sont devinés ; une quantité en toutes lettres (« une demi-boîte ») n'est pas modifiée. Le calcul des coûts et la liste de courses restent fondés sur les quantités exactes ; la liste affiche ce qui se compte à la pièce comme au magasin (« 3 tomates (≈ 360 g) », « 6 œufs »).
 
 Le bouton en haut à droite règle le **thème** (auto / clair / sombre) ; la puce « Démo » ou « Notion » explique d'où viennent les données.
 
@@ -69,7 +75,7 @@ Le coût par portion d'une recette est au prorata (pour comparer les recettes). 
 
 Les 7 prochains jours à partir du prochain repas (rien pour un repas déjà passé). Pour chaque repas, dans l'ordre :
 
-- **ce que je n'aime pas / ce que je n'ai pas** : une recette dont le nom ou les ingrédients contiennent un mot exclu (réglage « Je n'aime pas », par défaut omelette, soupe, velouté, fruits de mer — qui compte crevettes, moules, calamars…) ou qui demande un four (« Pas de four » : four, préchauffer, enfourner, gratin, tarte, quiche…) n'est **jamais proposée**. Un repas déjà prévu avec une telle recette est remplacé, sauf s'il est 📌 gardé ;
+- **ce que je n'aime pas / ce que je n'ai pas** : une recette dont le nom ou les ingrédients contiennent un mot exclu (réglage « Je n'aime pas », par défaut omelette, soupe, velouté, fruits de mer — qui compte crevettes, moules, calamars… —, lentilles et dal. Les autres légumineuses, pois chiches et haricots, restent permises) ou qui demande un four (« Pas de four » : four, préchauffer, enfourner, gratin, tarte, quiche…) n'est **jamais proposée**. Un repas déjà prévu avec une telle recette est remplacé, sauf s'il est 📌 gardé ;
 
 - **midi simple, soir cuisiné** : le midi, seulement des recettes « Midi simple » (ou « Les deux ») ; le soir, des « Plat du soir ». Le type est deviné à l'import (mots du nom comme salade, sandwich, wrap, croque ; difficulté et genre de plat donnés par Marmiton ; nombre d'ingrédients) et se corrige dans l'onglet Recettes ;
 - **coût réel** : on pioche d'abord dans le placard, sinon on achète des paquets entiers ; le surplus va au placard pour les repas suivants ;
@@ -190,6 +196,7 @@ Sur le NAS Synology, comme le jeu Gorgée : `docker-compose.yml` à coller dans 
 | `prix.js` | Récupération des prix Open Prices |
 | `marmiton.js` | Recherche et lecture des recettes Marmiton |
 | `planning.js` | Choix des repas sur 7 jours, achat par paquets, placard, type de plat |
+| `quantites.js` | Ingrédients et étapes réécrits pour un autre nombre de personnes, quantités de la liste de courses |
 | `widget.js` | Route du widget iPhone : jeton, débit, calcul du prochain repas et des courses urgentes |
 | `demo-recettes.json` | Recettes d'exemple |
 | `public/` | Interface (HTML, CSS, JS), manifest PWA, service worker, icônes |

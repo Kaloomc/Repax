@@ -1,28 +1,373 @@
 [
-  { "nom": "Pâtes à la bolognaise", "type": "Plat du soir", "url": null, "portions": 4, "temps": 40, "ingredients": "400 g de spaghetti\n400 g de bœuf haché\n1 boîte de tomates concassées\n1 oignon\n2 gousses d'ail\n2 cuillères à soupe d'huile d'olive\nsel\npoivre" },
-  { "nom": "Chili con carne", "type": "Plat du soir", "url": null, "portions": 4, "temps": 50, "ingredients": "400 g de bœuf haché\n1 boîte de haricots rouges\n1 boîte de tomates concassées\n1 oignon\n1 poivron\n200 g de riz\n1 cuillère à café de cumin\nsel" },
-  { "nom": "Curry de pois chiches", "type": "Plat du soir", "url": null, "portions": 4, "temps": 30, "ingredients": "2 boîtes de pois chiches\n40 cl de lait de coco\n1 boîte de tomates concassées\n1 oignon\n2 cuillères à soupe de curry\n250 g de riz" },
-  { "nom": "Omelette aux pommes de terre", "type": "Les deux", "url": null, "portions": 4, "temps": 30, "ingredients": "8 œufs\n600 g de pommes de terre\n1 oignon\n3 cuillères à soupe d'huile\nsel\npoivre" },
-  { "nom": "Riz cantonais", "type": "Les deux", "url": null, "portions": 4, "temps": 25, "ingredients": "300 g de riz\n4 œufs\n150 g de jambon\n100 g de petits pois\n2 cuillères à soupe de sauce soja\n2 cuillères à soupe d'huile" },
-  { "nom": "Quiche lorraine", "type": "Plat du soir", "url": null, "portions": 4, "temps": 45, "ingredients": "1 pâte brisée\n200 g de lardons\n3 œufs\n20 cl de crème fraîche\n20 cl de lait\n100 g d'emmental râpé\nmuscade" },
-  { "nom": "Gratin de courgettes", "type": "Plat du soir", "url": null, "portions": 4, "temps": 45, "ingredients": "1 kg de courgettes\n2 œufs\n20 cl de crème fraîche\n100 g d'emmental râpé\n1 gousse d'ail\nsel\npoivre" },
-  { "nom": "Poulet au curry et riz", "type": "Plat du soir", "url": null, "portions": 4, "temps": 35, "ingredients": "4 blancs de poulet\n20 cl de crème fraîche\n1 oignon\n2 cuillères à soupe de curry\n300 g de riz\n1 cuillère à soupe d'huile" },
-  { "nom": "Lentilles aux saucisses", "type": "Plat du soir", "url": null, "portions": 4, "temps": 45, "ingredients": "400 g de lentilles\n4 saucisses\n2 carottes\n1 oignon\n1 bouquet garni\nsel" },
-  { "nom": "Soupe de légumes", "type": "Plat du soir", "url": null, "portions": 4, "temps": 40, "ingredients": "3 carottes\n2 poireaux\n3 pommes de terre\n1 oignon\n1 cube de bouillon\n1 baguette" },
-  { "nom": "Tarte thon tomate moutarde", "type": "Plat du soir", "url": null, "portions": 4, "temps": 45, "ingredients": "1 pâte brisée\n2 boîtes de thon\n3 tomates\n2 cuillères à soupe de moutarde\n100 g d'emmental râpé" },
-  { "nom": "Hachis parmentier", "type": "Plat du soir", "url": null, "portions": 4, "temps": 60, "ingredients": "1 kg de pommes de terre\n400 g de bœuf haché\n1 oignon\n20 cl de lait\n30 g de beurre\n80 g d'emmental râpé" },
-  { "nom": "Pâtes carbonara", "type": "Plat du soir", "url": null, "portions": 4, "temps": 20, "ingredients": "400 g de spaghetti\n200 g de lardons\n3 œufs\n60 g de parmesan\npoivre" },
-  { "nom": "Poêlée de légumes et œufs au plat", "type": "Plat du soir", "url": null, "portions": 4, "temps": 25, "ingredients": "2 courgettes\n2 poivrons\n1 oignon\n8 œufs\n2 cuillères à soupe d'huile d'olive\nherbes de Provence" },
-  { "nom": "Croque-monsieur et salade", "type": "Midi simple", "url": null, "portions": 2, "temps": 15, "ingredients": "4 tranches de pain de mie\n2 tranches de jambon\n60 g d'emmental râpé\n15 g de beurre\n1/2 salade" },
-  { "nom": "Salade de pâtes au thon", "type": "Midi simple", "url": null, "portions": 2, "temps": 15, "ingredients": "150 g de pâtes\n1 boîte de thon\n1/2 boîte de maïs\n1 tomate\n1/2 concombre\n2 cuillères à soupe d'huile d'olive\n1 cuillère à soupe de vinaigre" },
-  { "nom": "Jambon-beurre", "type": "Midi simple", "url": null, "portions": 2, "temps": 5, "ingredients": "1 baguette\n4 tranches de jambon\n20 g de beurre\ncornichons" },
-  { "nom": "Wrap poulet crudités", "type": "Midi simple", "url": null, "portions": 2, "temps": 15, "ingredients": "4 tortillas\n2 blancs de poulet\n1 tomate\n1/4 salade\n2 cuillères à soupe de mayonnaise" },
-  { "nom": "Salade composée œuf thon maïs", "type": "Midi simple", "url": null, "portions": 2, "temps": 15, "ingredients": "1/2 salade\n2 œufs\n1 boîte de thon\n1/2 boîte de maïs\n2 tomates\n2 cuillères à soupe d'huile d'olive\n1 cuillère à soupe de vinaigre" },
-  { "nom": "Bowl riz thon maïs", "type": "Midi simple", "url": null, "portions": 2, "temps": 15, "ingredients": "150 g de riz\n1 boîte de thon\n1/2 boîte de maïs\n1/2 concombre\n1 avocat\n1 cuillère à soupe de sauce soja" },
-  { "nom": "Pâtes au pesto", "type": "Midi simple", "url": null, "portions": 2, "temps": 12, "ingredients": "200 g de pâtes\n4 cuillères à soupe de pesto\n20 g de parmesan" },
-  { "nom": "Quesadilla jambon fromage", "type": "Midi simple", "url": null, "portions": 2, "temps": 10, "ingredients": "4 tortillas\n2 tranches de jambon\n80 g d'emmental râpé\n1 tomate" },
-  { "nom": "Taboulé", "type": "Midi simple", "url": null, "portions": 2, "temps": 15, "ingredients": "120 g de semoule\n2 tomates\n1/2 concombre\n1 citron\n2 cuillères à soupe d'huile d'olive\nmenthe" },
-  { "nom": "Tartines avocat œuf", "type": "Midi simple", "url": null, "portions": 2, "temps": 10, "ingredients": "4 tranches de pain de mie\n1 avocat\n2 œufs\n1/2 citron\nsel" },
-  { "nom": "Omelette au fromage", "type": "Midi simple", "url": null, "portions": 2, "temps": 10, "ingredients": "5 œufs\n60 g d'emmental râpé\n10 g de beurre\nsel\npoivre" },
-  { "nom": "Pan bagnat", "type": "Midi simple", "url": null, "portions": 2, "temps": 15, "ingredients": "1 baguette\n1 boîte de thon\n2 tomates\n2 œufs\n1 cuillère à soupe d'huile d'olive" }
+  {
+    "nom": "Pâtes à la bolognaise",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 40,
+    "ingredients": "400 g de spaghetti\n400 g de bœuf haché\n1 boîte de tomates concassées\n1 oignon\n2 gousses d'ail\n2 cuillères à soupe d'huile d'olive\nsel\npoivre"
+  },
+  {
+    "nom": "Chili con carne",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 50,
+    "ingredients": "400 g de bœuf haché\n1 boîte de haricots rouges\n1 boîte de tomates concassées\n1 oignon\n1 poivron\n200 g de riz\n1 cuillère à café de cumin\nsel"
+  },
+  {
+    "nom": "Curry de pois chiches",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 30,
+    "ingredients": "2 boîtes de pois chiches\n40 cl de lait de coco\n1 boîte de tomates concassées\n1 oignon\n2 cuillères à soupe de curry\n250 g de riz"
+  },
+  {
+    "nom": "Omelette aux pommes de terre",
+    "type": "Les deux",
+    "url": null,
+    "portions": 4,
+    "temps": 30,
+    "ingredients": "8 œufs\n600 g de pommes de terre\n1 oignon\n3 cuillères à soupe d'huile\nsel\npoivre"
+  },
+  {
+    "nom": "Riz cantonais",
+    "type": "Les deux",
+    "url": null,
+    "portions": 4,
+    "temps": 25,
+    "ingredients": "300 g de riz\n4 œufs\n150 g de jambon\n100 g de petits pois\n2 cuillères à soupe de sauce soja\n2 cuillères à soupe d'huile"
+  },
+  {
+    "nom": "Quiche lorraine",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 45,
+    "ingredients": "1 pâte brisée\n200 g de lardons\n3 œufs\n20 cl de crème fraîche\n20 cl de lait\n100 g d'emmental râpé\nmuscade"
+  },
+  {
+    "nom": "Gratin de courgettes",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 45,
+    "ingredients": "1 kg de courgettes\n2 œufs\n20 cl de crème fraîche\n100 g d'emmental râpé\n1 gousse d'ail\nsel\npoivre"
+  },
+  {
+    "nom": "Poulet au curry et riz",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 35,
+    "ingredients": "4 blancs de poulet\n20 cl de crème fraîche\n1 oignon\n2 cuillères à soupe de curry\n300 g de riz\n1 cuillère à soupe d'huile"
+  },
+  {
+    "nom": "Soupe de légumes",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 40,
+    "ingredients": "3 carottes\n2 poireaux\n3 pommes de terre\n1 oignon\n1 cube de bouillon\n1 baguette"
+  },
+  {
+    "nom": "Tarte thon tomate moutarde",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 45,
+    "ingredients": "1 pâte brisée\n2 boîtes de thon\n3 tomates\n2 cuillères à soupe de moutarde\n100 g d'emmental râpé"
+  },
+  {
+    "nom": "Hachis parmentier",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 60,
+    "ingredients": "1 kg de pommes de terre\n400 g de bœuf haché\n1 oignon\n20 cl de lait\n30 g de beurre\n80 g d'emmental râpé"
+  },
+  {
+    "nom": "Pâtes carbonara",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 20,
+    "ingredients": "400 g de spaghetti\n200 g de lardons\n3 œufs\n60 g de parmesan\npoivre"
+  },
+  {
+    "nom": "Poêlée de légumes et œufs au plat",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 25,
+    "ingredients": "2 courgettes\n2 poivrons\n1 oignon\n8 œufs\n2 cuillères à soupe d'huile d'olive\nherbes de Provence"
+  },
+  {
+    "nom": "Croque-monsieur et salade",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 15,
+    "ingredients": "4 tranches de pain de mie\n2 tranches de jambon\n60 g d'emmental râpé\n15 g de beurre\n1/2 salade"
+  },
+  {
+    "nom": "Salade de pâtes au thon",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 15,
+    "ingredients": "150 g de pâtes\n1 boîte de thon\n1/2 boîte de maïs\n1 tomate\n1/2 concombre\n2 cuillères à soupe d'huile d'olive\n1 cuillère à soupe de vinaigre"
+  },
+  {
+    "nom": "Jambon-beurre",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 5,
+    "ingredients": "1 baguette\n4 tranches de jambon\n20 g de beurre\ncornichons"
+  },
+  {
+    "nom": "Wrap poulet crudités",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 15,
+    "ingredients": "4 tortillas\n2 blancs de poulet\n1 tomate\n1/4 salade\n2 cuillères à soupe de mayonnaise"
+  },
+  {
+    "nom": "Salade composée œuf thon maïs",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 15,
+    "ingredients": "1/2 salade\n2 œufs\n1 boîte de thon\n1/2 boîte de maïs\n2 tomates\n2 cuillères à soupe d'huile d'olive\n1 cuillère à soupe de vinaigre"
+  },
+  {
+    "nom": "Bowl riz thon maïs",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 15,
+    "ingredients": "150 g de riz\n1 boîte de thon\n1/2 boîte de maïs\n1/2 concombre\n1 avocat\n1 cuillère à soupe de sauce soja"
+  },
+  {
+    "nom": "Pâtes au pesto",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 12,
+    "ingredients": "200 g de pâtes\n4 cuillères à soupe de pesto\n20 g de parmesan"
+  },
+  {
+    "nom": "Quesadilla jambon fromage",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 10,
+    "ingredients": "4 tortillas\n2 tranches de jambon\n80 g d'emmental râpé\n1 tomate"
+  },
+  {
+    "nom": "Taboulé",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 15,
+    "ingredients": "120 g de semoule\n2 tomates\n1/2 concombre\n1 citron\n2 cuillères à soupe d'huile d'olive\nmenthe"
+  },
+  {
+    "nom": "Tartines avocat œuf",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 10,
+    "ingredients": "4 tranches de pain de mie\n1 avocat\n2 œufs\n1/2 citron\nsel"
+  },
+  {
+    "nom": "Omelette au fromage",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 10,
+    "ingredients": "5 œufs\n60 g d'emmental râpé\n10 g de beurre\nsel\npoivre"
+  },
+  {
+    "nom": "Pan bagnat",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 15,
+    "ingredients": "1 baguette\n1 boîte de thon\n2 tomates\n2 œufs\n1 cuillère à soupe d'huile d'olive"
+  },
+  {
+    "nom": "Riz sauté au poulet et aux carottes",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 30,
+    "ingredients": "300 g de riz\n2 blancs de poulet\n3 carottes\n1 oignon\n3 œufs\n3 cuillères à soupe de sauce soja\n2 cuillères à soupe d'huile\nsel\npoivre",
+    "etapes": "1. Faites cuire 300 g de riz dans de l'eau salée pendant 10 minutes, égouttez-le et laissez-le refroidir un peu.\n2. Coupez les 2 blancs de poulet en petits dés, les 3 carottes en rondelles fines et l'oignon en lamelles.\n3. Dans une grande poêle, faites chauffer 2 cuillères à soupe d'huile et saisissez le poulet 6 minutes en remuant. Réservez-le.\n4. Faites revenir l'oignon et les carottes 8 minutes dans la même poêle.\n5. Poussez les légumes sur le côté, cassez les 3 œufs dans la poêle et brouillez-les, puis ajoutez le riz et le poulet.\n6. Versez 3 cuillères à soupe de sauce soja, poivrez, mélangez 3 minutes et servez chaud."
+  },
+  {
+    "nom": "Pâtes aux saucisses et sauce tomate",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 30,
+    "ingredients": "400 g de pâtes\n4 saucisses\n1 boîte de tomates concassées\n1 oignon\n2 gousses d'ail\n1 cuillère à soupe d'huile\nsel\npoivre\norigan",
+    "etapes": "1. Retirez la peau des 4 saucisses et coupez la chair en morceaux.\n2. Faites chauffer 1 cuillère à soupe d'huile dans une poêle et dorez l'oignon émincé 4 minutes.\n3. Ajoutez la chair à saucisse et faites-la cuire 8 minutes en l'écrasant à la fourchette, puis les 2 gousses d'ail hachées.\n4. Versez 1 boîte de tomates concassées, salez, poivrez, ajoutez l'origan et laissez mijoter 15 minutes à feu doux.\n5. Pendant ce temps, faites cuire 400 g de pâtes dans de l'eau bouillante salée selon le temps indiqué sur le paquet.\n6. Égouttez les pâtes et mélangez-les à la sauce."
+  },
+  {
+    "nom": "Poulet à la crème et aux champignons, riz",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 35,
+    "ingredients": "4 blancs de poulet\n250 g de champignons\n20 cl de crème fraîche\n1 oignon\n300 g de riz\n1 cuillère à soupe d'huile\n1 cuillère à soupe de moutarde\nsel\npoivre",
+    "etapes": "1. Coupez les 4 blancs de poulet en morceaux, émincez l'oignon et coupez les 250 g de champignons en lamelles.\n2. Faites chauffer 1 cuillère à soupe d'huile dans une grande poêle et dorez le poulet 8 minutes. Réservez-le.\n3. Faites revenir l'oignon puis les champignons 6 minutes, jusqu'à ce que l'eau s'évapore.\n4. Remettez le poulet, ajoutez 20 cl de crème fraîche et 1 cuillère à soupe de moutarde, salez, poivrez et laissez mijoter 8 minutes.\n5. Pendant ce temps, faites cuire 300 g de riz 10 minutes dans de l'eau salée, puis égouttez-le.\n6. Servez le poulet sur le riz."
+  },
+  {
+    "nom": "Saucisses et purée maison",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 40,
+    "ingredients": "4 saucisses\n1 kg de pommes de terre\n20 cl de lait\n30 g de beurre\n1 cuillère à soupe d'huile\nsel\npoivre\nmuscade",
+    "etapes": "1. Épluchez 1 kg de pommes de terre, coupez-les en gros morceaux et plongez-les dans de l'eau froide salée.\n2. Portez à ébullition et laissez cuire 20 minutes, jusqu'à ce qu'un couteau s'enfonce sans résistance.\n3. Pendant ce temps, faites dorer les 4 saucisses 15 minutes dans une poêle avec 1 cuillère à soupe d'huile, en les retournant.\n4. Égouttez les pommes de terre, écrasez-les, ajoutez 30 g de beurre et 20 cl de lait chaud.\n5. Salez, poivrez, ajoutez un peu de muscade et mélangez jusqu'à obtenir une purée lisse. Servez avec les saucisses."
+  },
+  {
+    "nom": "Poêlée de pommes de terre, lardons et oignons",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 35,
+    "ingredients": "800 g de pommes de terre\n200 g de lardons\n2 oignons\n2 cuillères à soupe d'huile\nsel\npoivre\npersil",
+    "etapes": "1. Épluchez 800 g de pommes de terre et coupez-les en petits cubes. Émincez les 2 oignons.\n2. Faites chauffer 2 cuillères à soupe d'huile dans une grande poêle et faites cuire les pommes de terre 15 minutes à feu moyen, en remuant souvent.\n3. Ajoutez les oignons et 200 g de lardons, et poursuivez la cuisson 10 minutes.\n4. Salez peu (les lardons sont salés), poivrez, parsemez de persil et servez bien chaud."
+  },
+  {
+    "nom": "Steaks hachés et haricots verts",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 25,
+    "ingredients": "4 steaks hachés\n500 g de haricots verts\n30 g de beurre\n1 gousse d'ail\n1 cuillère à soupe d'huile\nsel\npoivre",
+    "etapes": "1. Faites cuire 500 g de haricots verts 10 minutes dans de l'eau bouillante salée, puis égouttez-les.\n2. Faites chauffer 1 cuillère à soupe d'huile dans une poêle et cuisez les 4 steaks hachés 3 à 4 minutes de chaque côté. Salez, poivrez, réservez.\n3. Dans la même poêle, faites fondre 30 g de beurre, ajoutez 1 gousse d'ail hachée puis les haricots verts et faites-les sauter 5 minutes.\n4. Servez les steaks avec les haricots."
+  },
+  {
+    "nom": "Poulet coco et riz",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 35,
+    "ingredients": "4 blancs de poulet\n40 cl de lait de coco\n300 g de riz\n1 oignon\n2 cuillères à soupe de curry\n1 cuillère à soupe d'huile\nsel",
+    "etapes": "1. Coupez les 4 blancs de poulet en morceaux et émincez l'oignon.\n2. Faites chauffer 1 cuillère à soupe d'huile dans une casserole, dorez le poulet 5 minutes, ajoutez l'oignon et laissez cuire 4 minutes.\n3. Saupoudrez de 2 cuillères à soupe de curry, mélangez 1 minute, puis versez 40 cl de lait de coco. Salez.\n4. Laissez mijoter 15 minutes à feu doux, à couvert.\n5. Pendant ce temps, faites cuire 300 g de riz 10 minutes dans de l'eau salée et égouttez-le. Servez le poulet sur le riz."
+  },
+  {
+    "nom": "Semoule aux légumes et poulet",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 30,
+    "ingredients": "300 g de semoule\n2 blancs de poulet\n2 courgettes\n2 carottes\n1 oignon\n2 cuillères à soupe d'huile\n1 cuillère à café de cumin\nsel\npoivre",
+    "etapes": "1. Coupez les 2 blancs de poulet en dés, les 2 courgettes et les 2 carottes en petits cubes, et émincez l'oignon.\n2. Faites chauffer 2 cuillères à soupe d'huile dans une grande poêle et saisissez le poulet 6 minutes. Réservez-le.\n3. Faites revenir l'oignon, les carottes puis les courgettes 12 minutes. Ajoutez 1 cuillère à café de cumin, salez, poivrez, remettez le poulet.\n4. Versez 300 g de semoule dans un saladier, couvrez avec la même quantité d'eau bouillante salée, couvrez et laissez gonfler 5 minutes, puis égrenez à la fourchette.\n5. Servez la semoule avec la poêlée de poulet et de légumes."
+  },
+  {
+    "nom": "Pâtes au jambon, champignons et crème",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 25,
+    "ingredients": "400 g de pâtes\n4 tranches de jambon\n250 g de champignons\n20 cl de crème fraîche\n1 oignon\n1 cuillère à soupe de beurre\nsel\npoivre",
+    "etapes": "1. Faites cuire 400 g de pâtes dans de l'eau bouillante salée selon le temps indiqué sur le paquet.\n2. Émincez l'oignon, coupez les 250 g de champignons en lamelles et les 4 tranches de jambon en lanières.\n3. Faites fondre 1 cuillère à soupe de beurre dans une poêle, faites revenir l'oignon 3 minutes puis les champignons 6 minutes.\n4. Ajoutez le jambon et 20 cl de crème fraîche, salez, poivrez et laissez chauffer 3 minutes.\n5. Mélangez avec les pâtes égouttées et servez."
+  },
+  {
+    "nom": "Riz au chorizo et aux poivrons",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 35,
+    "ingredients": "300 g de riz\n150 g de chorizo\n2 poivrons\n1 oignon\n1 boîte de tomates concassées\n1 cuillère à soupe d'huile\npaprika\nsel",
+    "etapes": "1. Coupez 150 g de chorizo en rondelles, les 2 poivrons en lanières et émincez l'oignon.\n2. Faites chauffer 1 cuillère à soupe d'huile dans une grande poêle ou une sauteuse et faites dorer le chorizo 3 minutes.\n3. Ajoutez l'oignon et les poivrons, faites revenir 8 minutes, puis ajoutez 300 g de riz et mélangez 1 minute.\n4. Versez 1 boîte de tomates concassées et 40 cl d'eau, ajoutez le paprika et du sel, couvrez et laissez cuire 15 minutes à feu doux, jusqu'à absorption du liquide."
+  },
+  {
+    "nom": "Boulettes de bœuf, sauce tomate et semoule",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 35,
+    "ingredients": "400 g de bœuf haché\n1 oignon\n1 œuf\n1 boîte de tomates concassées\n300 g de semoule\n2 cuillères à soupe d'huile\nsel\npoivre\ncumin",
+    "etapes": "1. Mélangez 400 g de bœuf haché avec l'œuf, la moitié de l'oignon haché, du sel, du poivre et du cumin, puis formez des boulettes de la taille d'une noix.\n2. Faites chauffer 1 cuillère à soupe d'huile dans une poêle et dorez les boulettes 8 minutes en les retournant. Réservez-les.\n3. Dans une casserole, faites revenir le reste de l'oignon dans 1 cuillère à soupe d'huile, ajoutez 1 boîte de tomates concassées, salez et laissez mijoter 10 minutes.\n4. Ajoutez les boulettes à la sauce et laissez mijoter 10 minutes.\n5. Faites gonfler 300 g de semoule avec la même quantité d'eau bouillante salée pendant 5 minutes et servez avec les boulettes."
+  },
+  {
+    "nom": "Cuisses de poulet poêlées et pommes de terre",
+    "type": "Plat du soir",
+    "url": null,
+    "portions": 4,
+    "temps": 50,
+    "ingredients": "4 cuisses de poulet\n800 g de pommes de terre\n2 oignons\n2 cuillères à soupe d'huile\nthym\nsel\npoivre",
+    "etapes": "1. Épluchez 800 g de pommes de terre et coupez-les en quartiers. Émincez les 2 oignons.\n2. Faites chauffer 2 cuillères à soupe d'huile dans une grande sauteuse et faites dorer les 4 cuisses de poulet 5 minutes de chaque côté.\n3. Ajoutez les pommes de terre et les oignons, salez, poivrez, ajoutez le thym et 10 cl d'eau.\n4. Couvrez et laissez cuire 30 minutes à feu doux en retournant de temps en temps, jusqu'à ce que le poulet soit bien cuit et les pommes de terre tendres."
+  },
+  {
+    "nom": "Salade de riz, thon et tomates",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 15,
+    "ingredients": "150 g de riz\n1 boîte de thon\n2 tomates\n1/2 concombre\n1 cuillère à soupe d'huile\n1 cuillère à soupe de vinaigre\nsel\npoivre",
+    "etapes": "1. Faites cuire 150 g de riz 10 minutes dans de l'eau salée, égouttez-le et rincez-le à l'eau froide.\n2. Coupez les 2 tomates et le demi-concombre en dés.\n3. Mélangez le riz refroidi, les légumes et 1 boîte de thon égouttée.\n4. Assaisonnez avec 1 cuillère à soupe d'huile, 1 cuillère à soupe de vinaigre, du sel et du poivre."
+  },
+  {
+    "nom": "Tartines mozzarella et tomate",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 10,
+    "ingredients": "1/2 baguette\n1 mozzarella\n2 tomates\n1 cuillère à soupe d'huile d'olive\nbasilic\nsel\npoivre",
+    "etapes": "1. Coupez 1/2 baguette en 4 tranches et faites-les griller dans une poêle sèche, 2 minutes de chaque côté.\n2. Coupez 1 mozzarella et les 2 tomates en rondelles.\n3. Disposez les tomates et la mozzarella sur le pain, salez, poivrez, ajoutez le basilic et 1 cuillère à soupe d'huile d'olive."
+  },
+  {
+    "nom": "Salade de pommes de terre, jambon et œufs",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 25,
+    "ingredients": "400 g de pommes de terre\n2 tranches de jambon\n2 œufs\n1 oignon\n1 cuillère à soupe d'huile\n1 cuillère à soupe de vinaigre\n1 cuillère à café de moutarde\nsel\npoivre",
+    "etapes": "1. Faites cuire 400 g de pommes de terre avec leur peau 20 minutes dans de l'eau salée, et les 2 œufs 10 minutes dans une autre casserole.\n2. Épluchez les pommes de terre et les œufs, coupez-les en rondelles, coupez le jambon en lanières et l'oignon en fines lamelles.\n3. Mélangez 1 cuillère à soupe d'huile, 1 cuillère à soupe de vinaigre et 1 cuillère à café de moutarde, salez, poivrez.\n4. Versez la sauce sur les pommes de terre encore tièdes, ajoutez le jambon, les œufs et l'oignon, et mélangez délicatement."
+  },
+  {
+    "nom": "Salade de poulet, parmesan et croûtons",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 20,
+    "ingredients": "1 blanc de poulet\n1 salade\n1/4 de baguette\n20 g de parmesan\n2 cuillères à soupe d'huile d'olive\n1 cuillère à soupe de moutarde\n1 cuillère à soupe de vinaigre\nsel\npoivre",
+    "etapes": "1. Coupez 1 blanc de poulet en lanières et faites-les dorer 8 minutes dans une poêle avec 1 cuillère à soupe d'huile d'olive. Salez, poivrez.\n2. Coupez 1/4 de baguette en dés et faites-les griller 3 minutes dans la même poêle.\n3. Lavez et déchirez la salade, coupez 20 g de parmesan en copeaux.\n4. Préparez la sauce avec 1 cuillère à soupe d'huile d'olive, 1 cuillère à soupe de moutarde et 1 cuillère à soupe de vinaigre.\n5. Mélangez la salade, le poulet, les croûtons et le parmesan avec la sauce."
+  },
+  {
+    "nom": "Salade de semoule, concombre et thon",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 15,
+    "ingredients": "120 g de semoule\n1 boîte de thon\n1/2 concombre\n2 tomates\n1 cuillère à soupe d'huile d'olive\n1 citron\nsel\nmenthe",
+    "etapes": "1. Versez 120 g de semoule dans un saladier, couvrez avec la même quantité d'eau bouillante salée et laissez gonfler 5 minutes, puis égrenez à la fourchette.\n2. Coupez le demi-concombre et les 2 tomates en petits dés.\n3. Mélangez la semoule refroidie, les légumes et 1 boîte de thon égouttée.\n4. Assaisonnez avec le jus du citron, 1 cuillère à soupe d'huile d'olive, du sel et de la menthe."
+  },
+  {
+    "nom": "Pâtes froides jambon et maïs",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 15,
+    "ingredients": "150 g de pâtes\n2 tranches de jambon\n1 petite boîte de maïs\n2 cuillères à soupe de crème fraîche\nsel\npoivre",
+    "etapes": "1. Faites cuire 150 g de pâtes dans de l'eau salée, égouttez-les et rincez-les à l'eau froide.\n2. Coupez les 2 tranches de jambon en lanières et égouttez le maïs.\n3. Mélangez les pâtes, le jambon, le maïs et 2 cuillères à soupe de crème fraîche, salez, poivrez."
+  },
+  {
+    "nom": "Sandwich poulet et avocat",
+    "type": "Midi simple",
+    "url": null,
+    "portions": 2,
+    "temps": 10,
+    "ingredients": "1 blanc de poulet\n1 avocat\n4 tranches de pain de mie\n1 cuillère à soupe d'huile\n1 citron\nsel\npoivre",
+    "etapes": "1. Coupez 1 blanc de poulet en deux dans l'épaisseur et faites-le dorer 4 minutes de chaque côté dans une poêle avec 1 cuillère à soupe d'huile. Salez, poivrez.\n2. Écrasez 1 avocat à la fourchette avec un filet de jus de citron, du sel et du poivre.\n3. Tartinez 4 tranches de pain de mie d'avocat et garnissez de poulet coupé en lamelles."
+  }
 ]

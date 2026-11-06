@@ -92,13 +92,15 @@ function demo() {
   };
   // Mise à niveau d'un ancien fichier : nouvelles bases, nouvelles recettes d'exemple, type des anciennes.
   for (const c of Object.keys(SCHEMAS)) db[c] ??= [];
-  if ((db.version ?? 1) < 2) {
+  if ((db.version ?? 1) < 3) {
+    // Version 3 : plus de plats aux lentilles ; recettes d'exemple avec leurs étapes.
+    db.recettes = db.recettes.filter((x) => x.nom !== 'Lentilles aux saucisses');
     for (const r of recettesDemo) {
       const existante = db.recettes.find((x) => x.nom === r.nom);
       if (existante) existante.type ??= r.type;
       else db.recettes.push({ id: crypto.randomUUID(), ...r });
     }
-    db.version = 2;
+    db.version = 3;
     save();
   }
   return {

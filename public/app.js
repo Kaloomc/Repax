@@ -33,9 +33,39 @@ function quantite(q, unite) {
   return '';
 }
 
+const norm = (s) => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const ESTIME = 'Estimation par catégorie';
 const ILLUSTRATIONS = { 'Midi simple': '🥪', 'Plat du soir': '🍲', 'Les deux': '🍽️' };
-const vignette = (r) => `<span class="vignette">${r.image ? `<img src="${esc(r.image)}" alt="" loading="lazy">` : ILLUSTRATIONS[r.type] || '🍽️'}</span>`;
+// Sans photo (recette saisie à la main, d'exemple, ou photo introuvable) : un emoji choisi d'après le nom du plat.
+const EMOJIS = [
+  [/pizza/, '🍕'], [/quiche|tarte|tourte/, '🥧'], [/soupe|potage|veloute/, '🍲'], [/omelette|oeuf/, '🍳'],
+  [/saucisse|merguez|hot dog/, '🌭'], [/wrap|quesadilla|tortilla|burrito|taco/, '🌯'],
+  [/sandwich|croque|jambon beurre|pan bagnat|tartine|toast|burger|bagel/, '🥪'],
+  [/pates|spaghetti|carbonara|bolognaise|lasagne|tagliatelle|macaroni|nouilles/, '🍝'],
+  [/curry|coco|chili/, '🍛'], [/riz|risotto|cantonais|poke/, '🍚'], [/salade|taboule|bowl|crudite/, '🥗'],
+  [/poulet|volaille|dinde/, '🍗'], [/steak|boeuf|boulette|hache|viande|porc/, '🥩'],
+  [/poisson|thon|saumon|cabillaud/, '🐟'], [/pomme de terre|puree|parmentier|gratin|frites/, '🥔'],
+  [/semoule|couscous|legume|courgette|poelee|ratatouille/, '🥘'],
+];
+const emojiRepas = (r) => {
+  const nom = norm(r.nom || r.repas || '');
+  return EMOJIS.find(([re]) => re.test(nom))?.[1] || ILLUSTRATIONS[r.type] || '🍽️';
+};
+// Photo : le lien direct de Marmiton (rien n'est copié ici), chargée à la demande. Si elle ne charge pas (hors ligne,
+// lien mort), l'emoji prend sa place : jamais d'image cassée (voir l'écouteur « error » plus bas).
+const vignette = (r) => `<span class="vignette">${r.image ? `<img src="${esc(r.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-secours="${emojiRepas(r)}">` : emojiRepas(r)}</span>`;
+document.addEventListener('error', (e) => {
+  const img = e.target;
+  if (img.tagName !== 'IMG' || !img.dataset.secours) return;
+  if (img.classList.contains('illustration')) {
+    const vide = document.createElement('div');
+    vide.className = 'illustration vide';
+    vide.textContent = img.dataset.secours;
+    img.replaceWith(vide);
+  } else {
+    img.replaceWith(document.createTextNode(img.dataset.secours));
+  }
+}, true);
 
 // Niveau d'une jauge : vert < 80 %, orange 80–100 %, rouge au-delà.
 const niveau = (valeur, max) => (max <= 0 || valeur > max ? 'rouge' : valeur >= 0.8 * max ? 'orange' : 'vert');
@@ -313,6 +343,8 @@ function ouvrirMenuRepas(r) {
       ${r.recette && !r.supprimee ? `<button class="bouton secondaire" data-action-repas="voir">${ic('book')} Voir la recette</button>` : ''}
       ${r.ailleurs ? '' : `<button class="bouton secondaire" data-action-repas="garde">${ic('pin')} ${r.garde ? 'Ne plus épingler' : 'Épingler (ne bouge plus)'}</button>`}
       ${r.ailleurs ? '' : `<button class="bouton secondaire" data-action-repas="changer">${ic('refresh')} Remplacer ce repas</button>`}
+      ${r.ailleurs ? '' : `<button class="bouton secondaire" data-action-repas="recette">${ic('book')} Choisir une autre recette</button>`}
+      <button class="bouton secondaire" data-action-repas="deplacer">${ic('calendar-plus')} Décaler ou échanger</button>
       <button class="bouton secondaire" data-action-repas="ailleurs">${ic('utensils')} ${r.ailleurs ? 'Finalement je le mange' : 'Mangé ailleurs (rien à cuisiner)'}</button>
       <button class="bouton discret" data-action-repas="fermer">Annuler</button>
     </div>`);
@@ -326,6 +358,8 @@ $('#feuille-contenu').addEventListener('click', async (e) => {
   const r = donnees.repas.find((x) => x.id === feuille.dataset.repas);
   if (action === 'fermer') return fermerFeuille();
   if (action === 'voir') return ouvrirFiche(r.recette, { portions: r.portions || 1 });
+  if (action === 'recette') return choisirRecettePour(r);
+  if (action === 'deplacer') return choisirDeplacement(r);
   fermerFeuille();
   try {
     if (action === 'garde') {
@@ -345,6 +379,104 @@ $('#feuille-contenu').addEventListener('click', async (e) => {
   }
   afficherSemaine();
   afficherCourses();
+});
+
+// Après un choix fait sur un repas : relire la semaine et les courses (recalculées côté serveur).
+async function rafraichirSemaine() {
+  donnees = await api('/api/semaine');
+  afficherSemaine();
+  afficherCourses();
+}
+
+// « Choisir une autre recette » pour ce repas : la recette choisie y est épinglée, les courses sont refaites.
+async function choisirRecettePour(r) {
+  ouvrirFeuille('<h2 id="feuille-titre">Choisir une recette</h2><div class="squelette" style="height:64px"></div>');
+  try {
+    const liste = (await api('/api/recettes')).filter((x) => !x.exclue.length);
+    const ideal = r.moment === 'midi' ? ['Midi simple', 'Les deux'] : ['Plat du soir', 'Les deux'];
+    liste.sort((a, b) => ideal.includes(b.type) - ideal.includes(a.type) || a.nom.localeCompare(b.nom, 'fr'));
+    ouvrirFeuille(`
+      <h2 id="feuille-titre">Choisir une recette</h2>
+      <p class="aide">${jourRelatif(r.date, donnees.aujourdhui)} ${jourCourt(r.date)}, ${r.moment}. Au lieu de « ${esc(r.repas)} ». Les plus adaptées à ce moment d’abord ; les courses sont refaites.</p>
+      <label class="recherche"><input type="search" data-filtre-recette placeholder="Filtrer" aria-label="Filtrer les recettes"></label>
+      <ul class="liste" data-liste-recettes>${liste.map((x) => `
+        <li data-nom="${esc(norm(x.nom))}">
+          <button class="repas-ouvrir" data-pick-recette="${esc(x.id)}">
+            ${vignette(x)}
+            <span class="repas-texte">
+              <span class="repas-nom">${esc(x.nom)}</span>
+              <span class="repas-meta">${[x.temps ? `${x.temps} min` : '', `${x.estime ? '≈ ' : ''}${euros(x.coutPortion)}/portion`, ideal.includes(x.type) ? '' : x.type].filter(Boolean).join(' · ')}</span>
+            </span>
+          </button>
+        </li>`).join('')}</ul>`);
+    feuille.dataset.repas = r.id;
+  } catch (err) {
+    fermerFeuille();
+    toast(err.message);
+  }
+}
+
+// « Décaler ou échanger » : tous les repas des jours qui viennent. Un créneau libre reçoit le repas, un créneau occupé l'échange.
+function choisirDeplacement(r) {
+  const occupe = new Map(donnees.repas.map((x) => [x.date + x.moment, x]));
+  const absents = new Set(donnees.absences.map((x) => x.date + x.moment));
+  const creneaux = [];
+  for (let j = 0; j < 8; j++) {
+    const date = dateDans(j);
+    for (const moment of ['midi', 'soir']) {
+      const x = occupe.get(date + moment);
+      if (x?.passe || (!x && j === 0 && new Date().getHours() >= (moment === 'midi' ? 14 : 21))) continue;
+      if (date === r.date && moment === r.moment) continue;
+      creneaux.push({ date, moment, x, absent: absents.has(date + moment) });
+    }
+  }
+  ouvrirFeuille(`
+    <h2 id="feuille-titre">Décaler « ${esc(r.repas)} »</h2>
+    <p class="aide">Choisis le repas où le manger : s’il y a déjà un plat, les deux sont échangés. Les deux restent épinglés ; un créneau laissé vide est rempli et les courses sont refaites.</p>
+    <ul class="liste">${creneaux.slice(0, 14).map((c) => {
+      const bloque = c.absent || c.x?.passe || c.x?.restes;
+      const texte = c.absent ? 'Pas à Angoulême' : c.x?.restes ? 'Restes de la veille' : c.x ? `Échanger avec « ${esc(c.x.repas)} »` : 'Libre : décaler ici';
+      return `
+      <li>
+        <button class="repas-ouvrir" ${bloque ? 'disabled' : `data-deplacer="${c.date}|${c.moment}"`}>
+          <span class="repas-texte">
+            <span class="moment-etiquette">${jourRelatif(c.date, donnees.aujourdhui)} ${jourCourt(c.date)} · ${c.moment}</span>
+            <span class="repas-meta">${texte}</span>
+          </span>
+        </button>
+      </li>`;
+    }).join('')}</ul>`);
+  feuille.dataset.repas = r.id;
+}
+
+$('#feuille-contenu').addEventListener('input', (e) => {
+  if (!e.target.matches('[data-filtre-recette]')) return;
+  const q = norm(e.target.value);
+  for (const li of $('#feuille-contenu').querySelectorAll('[data-liste-recettes] li')) li.hidden = !!q && !li.dataset.nom.includes(q);
+});
+
+$('#feuille-contenu').addEventListener('click', async (e) => {
+  const recette = e.target.closest('[data-pick-recette]');
+  const lieu = e.target.closest('[data-deplacer]');
+  if (!recette && !lieu) return;
+  const r = donnees.repas.find((x) => x.id === feuille.dataset.repas);
+  if (!r) return;
+  fermerFeuille();
+  toast('Je recalcule les courses…');
+  try {
+    if (recette) {
+      await api('/api/planning', { method: 'POST', body: { recette: recette.dataset.pickRecette, date: r.date, moment: r.moment } });
+      await rafraichirSemaine();
+      toast('Repas changé et épinglé : courses mises à jour');
+    } else {
+      const [date, moment] = lieu.dataset.deplacer.split('|');
+      const { echange } = await api('/api/planning/deplacer', { method: 'POST', body: { id: r.id, date, moment } });
+      await rafraichirSemaine();
+      toast(echange ? 'Repas échangés : courses mises à jour' : 'Repas décalé : courses mises à jour');
+    }
+  } catch (err) {
+    toast(err.message);
+  }
 });
 
 async function annulerProposition() {
@@ -385,15 +517,11 @@ let ficheOuverte = null;
 
 async function ouvrirFiche(id, { portions = 1, depuisRecettes = false } = {}) {
   try {
-    const r = await api(`/api/recettes/${encodeURIComponent(id)}`);
+    const r = await api(`/api/recettes/${encodeURIComponent(id)}?portions=${portions}`);
     ficheOuverte = { r, portions };
-    const pour = (l) => {
-      if (l.inconnu || l.placard || !l.qte) return '';
-      return `<small>${quantite((l.qte * portions) / r.portions, l.unite)}</small>`;
-    };
     const etapes = listeEtapes(r.etapes);
     ouvrirFeuille(`
-      ${r.image ? `<img class="illustration" src="${esc(r.image)}" alt="">` : ''}
+      ${r.image ? `<img class="illustration" src="${esc(r.image)}" alt="" decoding="async" referrerpolicy="no-referrer" data-secours="${emojiRepas(r)}">` : `<div class="illustration vide" aria-hidden="true">${emojiRepas(r)}</div>`}
       <h2 id="feuille-titre">${esc(r.nom)}</h2>
       <div class="meta-ligne">
         ${r.temps ? `<span class="puce">${ic('clock')} ${r.temps} min</span>` : ''}
@@ -407,8 +535,8 @@ async function ouvrirFiche(id, { portions = 1, depuisRecettes = false } = {}) {
         <button class="bouton secondaire" data-fiche-action="planning">${ic('calendar-plus')} Ajouter au planning</button>
       </div>
       <h3>Ingrédients · pour ${portions} portion${portions > 1 ? 's' : ''}</h3>
-      <ul class="ingredients">${r.lignes.map((l) => `<li><span>${esc(l.brut)}</span>${pour(l)}</li>`).join('')}</ul>
-      <p class="aide">Recette écrite pour ${r.portions} : les quantités en vert sont pour toi.</p>
+      <ul class="ingredients">${r.lignes.map((l) => `<li><span>${esc(l.texte ?? l.brut)}</span></li>`).join('')}</ul>
+      <p class="aide">${portions === r.portions ? `Recette écrite pour ${r.portions}.` : `Quantités et étapes réécrites pour ${portions} (la recette est écrite pour ${r.portions}), arrondies comme on les cuisine : à vérifier au besoin.`}</p>
       <h3>Étapes</h3>
       ${etapes.length ? `<ol class="etapes">${etapes.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>` : '<p class="aide">Pas d’étapes pour cette recette.</p>'}
       ${depuisRecettes ? `
@@ -500,7 +628,7 @@ function ouvrirCuisine(r, portions) {
   etapesCuisine = listeEtapes(r.etapes);
   etapeCourante = 0;
   $('#cuisine-titre').textContent = r.nom;
-  $('#cuisine-ingredients').innerHTML = r.lignes.map((l) => `<li><span>${esc(l.brut)}</span>${l.qte && !l.inconnu && !l.placard ? `<small>${quantite((l.qte * portions) / r.portions, l.unite)}</small>` : ''}</li>`).join('');
+  $('#cuisine-ingredients').innerHTML = r.lignes.map((l) => `<li><span>${esc(l.texte ?? l.brut)}</span></li>`).join('');
   montrerEtape();
   cuisine.showModal();
   garderEcranAllume(true);
@@ -541,6 +669,7 @@ let tri = (() => {
 function detailArticle(c) {
   if (manuelle(c)) return 'Ajouté à la main';
   if (!c.paquets) return 'Prix inconnu (compté 0,50 €)';
+  if (c.precis) return c.precis; // « 3 tomates (≈ 360 g) » plutôt que « 360 g »
   const taille = c.quantite / c.paquets;
   const paquet = c.unite === 'pièce' ? (taille === 1 ? '' : `${taille} pièces`) : quantite(taille, c.unite);
   const besoin = c.besoin && c.quantite - c.besoin > 1e-6 ? ` · besoin : ${c.unite === 'pièce' ? (Math.round(c.besoin * 10) / 10).toLocaleString('fr-FR') : quantite(c.besoin, c.unite)}` : '';
@@ -798,6 +927,20 @@ function afficherRecettes() {
   nr.querySelector('summary b').textContent = impossibles.length;
   nr.querySelector('.contenu').innerHTML = `<p class="aide">Four, ou plats que tu n'aimes pas (réglages dans l'onglet Budget). Elles ne sont jamais proposées.</p><div class="grille-recettes">${impossibles.map(carteRecette).join('')}</div>`;
 }
+
+$('#exemples').addEventListener('click', async (e) => {
+  const bouton = e.currentTarget;
+  bouton.disabled = true;
+  try {
+    const { ajoutees } = await api('/api/recettes/exemples', { method: 'POST' });
+    toast(ajoutees ? `${ajoutees} recettes ajoutées` : 'Toutes les recettes d’exemple sont déjà là');
+    await chargerRecettes();
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    bouton.disabled = false;
+  }
+});
 
 $('#filtres').addEventListener('click', (e) => {
   const b = e.target.closest('[data-filtre]');
